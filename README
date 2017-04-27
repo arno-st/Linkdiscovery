@@ -1,0 +1,35 @@
+/*******************************************************************************
+
+    Author ......... Arno Streuli
+    Contact ........ astreuli@gmail.com
+    Home Site ...... http://cactiusers.org
+    Program ........ Network Link Discovery for Cacti
+    Purpose ........ Network Link Discovery
+
+*******************************************************************************/
+
+----[ Purpose
+
+	This plugin is for scanning the network and follow the CDP discovered host, creating graph of all uplink.
+
+----[ Installation
+
+	To install the plugin, please refer to the Plugin Installation Documentation
+
+	linkdiscovery requires the Settings plugin to be installed at least, but ideally thold and monitor too
+    
+----[ Possible Bugs?
+   
+	On slow link it can crash you poller process, so I advice to disable slow link device
+	If you find a problem, let me know!!! http://bugs.cacti.net
+
+----[ Future Changes
+
+	Got any ideas or complaints, please e-mail me!
+
+----[ Changelog
+
+0.2	 Added the Switch/router equipement type into the comment
+0.3  Added a search based on destination hostname on the discover page
+0.31 create the thold without calling the autocreate of thold 
+0.32 Added the updated hostname with FQDN option, and local SNMP function to be able to retreive the IP address correctly from  CDP
