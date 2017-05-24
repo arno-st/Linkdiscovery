@@ -215,6 +215,8 @@ $update_hostname = read_config_option("linkdiscovery_update_hostname");
 $keepwifi = read_config_option("linkdiscovery_keep_wifi");
 // add the traffic graphs from the old host, to the new host
 $snmp_traffic_query_graph_id = read_config_option("linkdiscovery_traffic_graph");
+// add the nu graphs from the old host, to the new host
+$snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
 // add the status graphs, from the new host
 $snmp_status_query_graph_id = read_config_option("linkdiscovery_status_graph");
 // should we monitor the host
@@ -344,7 +346,7 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 	if( $snmp )
 	{
 	$searchip = cacti_snmp_walk( $seedhost, $snmp_array['snmp_community'], ".1.3.6.1.4.1.9.9.23.1.2.1.1.4", $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
-linkdiscovery_debug(" (".count($searchname).")find: ".var_dump($searchip)."\n");
+//linkdiscovery_debug(" (".count($searchname).")find: ".var_dump($searchip)."\n");
 
 		// host is scanned now, otherwise we will do it again
 		db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='1' WHERE hostname='" . $hostdiscovered[sizeof($hostdiscovered)-1]."'" );
@@ -434,13 +436,13 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	// Look for the capacities of the devices
 	$searchcapa = cacti_snmp_get( $seedhost, $snmp_array['snmp_community'], $cdpdevicecapacities.".".$intfindex, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
-linkdiscovery_debug("hostgetipcapa1: ". $seedhost. " OID: " . $hostoidindex ."\n");
+//linkdiscovery_debug("hostgetipcapa1: ". $seedhost. " OID: " . $hostoidindex ."\n");
 
 	// look for the IP table 
 	$searchip = ld_snmp_get( $seedhost, $snmp_array['snmp_community'], $cdpdeviceip.".".$intfindex, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
 	// look for the equipement type
-linkdiscovery_debug("hostgetipcapa2: ". $seedhost. " OID: " . $hostoidindex ."\n");
+//linkdiscovery_debug("hostgetipcapa2: ". $seedhost. " OID: " . $hostoidindex ."\n");
 
 	$searchtype = cacti_snmp_get( $seedhost, $snmp_array['snmp_community'], $cdpremotetype.".".$intfindex, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
@@ -448,7 +450,7 @@ linkdiscovery_debug("hostgetipcapa2: ". $seedhost. " OID: " . $hostoidindex ."\n
 	$ret['capa'] = $searchcapa;
 	$ret['type'] = $searchtype;
 
-linkdiscovery_debug("seed: ". $seedhost. " OID: " . $hostoidindex ." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
+//linkdiscovery_debug("seed: ". $seedhost. " OID: " . $hostoidindex ." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
 
 	return $ret;
 }
@@ -612,7 +614,7 @@ function linkdiscovery_graph_cpu( $new_hostid ){
 
 //**********************
 function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
-	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template;
+	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id;
 
 /* create_complete_graph_from_template - creates a graph and all necessary data sources based on a
         graph template
@@ -669,8 +671,32 @@ linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$traffic_
 				thold_graphs_create($thold_traffic_graph_template, $existsAlready);
 		}
 	}
+	// should we do a graph for NonUnicast packet
+	// snmp_packets_query_graph_id=39
+	// packets_graph_template_id=46
+	// snmp_query_id=10
+	if( $snmp_packets_query_graph_id > 0) {
+		$return_array = array();
+		$packets_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id);
+		$snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id );
+	
+		// take interface to be monitored, on the new host
+		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$packets_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
 
+		if( $existsAlready == 0 ) {
+			$empty=array();
+			$snmp_query_array["snmp_query_id"] = $snmp_query_id;
+			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
+			$snmp_query_array["snmp_query_graph_id"] = $snmp_packets_query_graph_id;
+			$snmp_query_array["snmp_index"] = $src_intf;
+			$return_array = create_complete_graph_from_template( $packets_graph_template_id, $seedhostid, $snmp_query_array, $empty);
 
+linkdiscovery_debug("   Created Packets graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
+		} else {
+linkdiscovery_debug("   Graph Packets exist: " .$seedhostid . " id: " .$packets_graph_template_id." exist: ".$existsAlready."\n" );
+		}
+	}
+	
 	// should we do a graph for the status
 	if( $snmp_status_query_graph_id > 0) {
 		$return_array = array();

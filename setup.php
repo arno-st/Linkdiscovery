@@ -123,7 +123,7 @@ function linkdiscovery_check_dependencies() {
 function plugin_linkdiscovery_version () {
 	return array(
 		'name'     => 'LinkDiscovery',
-		'version'  => '0.32',
+		'version'  => '0.33',
 		'longname' => 'Network Link Discovery',
 		'author'   => 'Arno Streuli',
 		'homepage' => 'http://cactiusers.org',
@@ -241,6 +241,12 @@ function linkdiscovery_config_settings () {
 			'description' => 'Enable Traffic Graph, and which type to use',
 			'method' => "drop_array",
 			'array' => linkdiscovery_get_graph_template('traffic'), 
+			),
+		'linkdiscovery_packets_graph' => array(
+			'friendly_name' => 'Packets Graph',
+			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
+			'method' => "drop_array",
+			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
@@ -532,11 +538,13 @@ function linkdiscovery_utilities_list () {
 
 function linkdiscovery_device_remove( $hosts_id ){
 	//array(1) { [0]=> string(4) "1921" } device remove : 
-	foreach( $hosts_id as $host_id) {
-		// remove host from plugin_linkdiscovery_hosts and plugin_linkdiscovery_intf
-		db_execute("DELETE FROM plugin_linkdiscovery_hosts where id=".$host_id );
-		db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_dst=".$host_id );
-		db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_src=".$host_id );
+	if( sizeof($hosts_id) ) {
+		foreach( $hosts_id as $host_id) {
+			// remove host from plugin_linkdiscovery_hosts and plugin_linkdiscovery_intf
+			db_execute("DELETE FROM plugin_linkdiscovery_hosts where id=".$host_id );
+			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_dst=".$host_id );
+			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_src=".$host_id );
+		}
 	}
 
 	return;
