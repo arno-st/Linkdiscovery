@@ -222,6 +222,8 @@ $use_ip_hostname = read_config_option("linkdiscovery_use_ip_hostname");
 $update_hostname = read_config_option("linkdiscovery_update_hostname");
 // wifi setup
 $keepwifi = read_config_option("linkdiscovery_keep_wifi");
+// add the nu graphs from the old host, to the new host
+$snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
 // add the traffic graphs from the old host, to the new host
 $snmp_traffic_query_graph_id = read_config_option("linkdiscovery_traffic_graph");
 // add the status graphs, from the new host
@@ -630,7 +632,34 @@ function linkdiscovery_graph_cpu( $new_hostid ){
 
 //**********************
 function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
-	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template;
+	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id;
+/* create_complete_graph_from_template - creates a graph and all necessary data sources based on a
+        graph template
+   @arg $graph_template_id - the id of the graph template that will be used to create the new
+        graph
+   @arg $host_id - the id of the host to associate the new graph and data sources with
+   @arg $snmp_query_array - if the new data sources are to be based on a data query, specify the
+        necessary data query information here. it must contain the following information:
+          $snmp_query_array["snmp_query_id"]
+          $snmp_query_array["snmp_index_on"]
+          $snmp_query_array["snmp_query_graph_id"]
+          $snmp_query_array["snmp_index"]
+   @arg $suggested_values_array - any additional information to be included in the new graphs or
+        data sources must be included in the array. data is to be included in the following format:
+          $values["cg"][graph_template_id]["graph_template"][field_name] = $value  // graph template
+          $values["cg"][graph_template_id]["graph_template_item"][graph_template_item_id][field_name] = $value  
+		  // graph template item
+          $values["cg"][data_template_id]["data_template"][field_name] = $value  // data template
+          $values["cg"][data_template_id]["data_template_item"][data_template_item_id][field_name] = $value  // data template item
+          $values["sg"][data_query_id][graph_template_id]["graph_template"][field_name] = $value  // graph template (w/ data query)
+          $values["sg"][data_query_id][graph_template_id]["graph_template_item"][graph_template_item_id][field_name] = $value  
+		  // graph template item (w/ data query)
+          $values["sg"][data_query_id][data_template_id]["data_template"][field_name] = $value  // data template (w/ data query)
+          $values["sg"][data_query_id][data_template_id]["data_template_item"][data_template_item_id][field_name] = $value  
+		  // data template item (w/ data query)
+function create_complete_graph_from_template($graph_template_id, $host_id, $snmp_query_array, &$suggested_values_array) {
+*/
+
 	// should we do a graph for traffic
 	if( $snmp_traffic_query_graph_id > 0) {
 		$return_array = array();
@@ -646,10 +675,10 @@ function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
 			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
 			$snmp_query_array["snmp_query_graph_id"] = $snmp_traffic_query_graph_id;
 			$snmp_query_array["snmp_index"] = $src_intf;
+linkdiscovery_debug("dump snmp_query_array: ". var_dump($snmp_query_array)."\n" );			
 			$return_array = create_complete_graph_from_template( $traffic_graph_template_id, $seedhostid, $snmp_query_array, $empty);
 
 //			automation_execute_graph_template( $seedhostid, $traffic_graph_template_id);
-
 			// Create the Threshold
 			if( $thold_traffic_graph_template > 0 )
 				thold_graphs_create($thold_traffic_graph_template, $return_array['local_graph_id']);
@@ -663,6 +692,31 @@ linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$traffic_
 		}
 	}
 
+	// should we do a graph for NonUnicast packet
+	// snmp_packets_query_graph_id=39
+	// packets_graph_template_id=46
+	// snmp_query_id=10
+	if( $snmp_packets_query_graph_id > 0) {
+		$return_array = array();
+		$packets_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id);
+		$snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id );
+	
+		// take interface to be monitored, on the new host
+		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$packets_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
+
+		if( $existsAlready == 0 ) {
+			$empty=array();
+			$snmp_query_array["snmp_query_id"] = $snmp_query_id;
+			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
+			$snmp_query_array["snmp_query_graph_id"] = $snmp_packets_query_graph_id;
+			$snmp_query_array["snmp_index"] = $src_intf;
+			$return_array = create_complete_graph_from_template( $packets_graph_template_id, $seedhostid, $snmp_query_array, $empty);
+
+linkdiscovery_debug("   Created packets graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
+		} else {
+linkdiscovery_debug("   Graph packets exist: " .$seedhostid . " id: " .$packets_graph_template_id." exist: ".$existsAlready."\n" );
+		}
+	}
 
 	// should we do a graph for the status
 	if( $snmp_status_query_graph_id > 0) {
