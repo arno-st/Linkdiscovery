@@ -194,6 +194,12 @@ function linkdiscovery_config_settings () {
 			'method' => "drop_array",
 			'array' => linkdiscovery_get_graph_template('traffic'), 
 			),
+		'linkdiscovery_packets_graph' => array(
+			'friendly_name' => 'Packets Graph',
+			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
+			'method' => "drop_array",
+			'array' => linkdiscovery_get_graph_template('Packets'), 
+			),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
 			'description' => 'Enable Status Threshold, and which template to use',
