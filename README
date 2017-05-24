@@ -36,3 +36,4 @@
 0.3 Added a search based on destination hostname on the discover page
 0.4 Addeds option for LLDP support
 1.0 SCacti 1.x Compliant
+1.0.2 added optional graph for non unicast packet
