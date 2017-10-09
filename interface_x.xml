@@ -1,0 +1,258 @@
+<interface>
+	<name>Get SNMP Interfaces (Extended)</name>
+	<description>Queries a host for a list of monitorable interfaces</description>
+	<oid_index>.1.3.6.1.2.1.2.2.1.1</oid_index>
+	<oid_num_indexes>.1.3.6.1.2.1.2.1.0</oid_num_indexes>
+	<index_order>ifDescr:ifName:ifHwAddr:ifIndex</index_order>
+	<index_order_type>numeric</index_order_type>
+	<index_title_format>|chosen_order_field|</index_title_format>
+
+	<fields>
+		<ifIndex>
+			<name>Index</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.1</oid>
+		</ifIndex>
+		<ifDescr>
+			<name>Description</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.2</oid>
+		</ifDescr>
+		<ifType>
+			<name>Type</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.3</oid>
+		</ifType>
+		<ifMtu>
+			<name>MTU</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.4</oid>
+		</ifMtu>
+                <ifSpeed>
+                        <name>Speed</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>input</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.5</oid>
+                </ifSpeed>
+		<ifHwAddr>
+			<name>Hardware Address</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.6</oid>
+		</ifHwAddr>
+		<ifAdminStatus>
+			<name>Admin Status</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.7</oid>
+		</ifAdminStatus>
+		<ifOperStatus>
+			<name>Operational Status</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.8</oid>
+		</ifOperStatus>
+                <ifInOctets>
+                        <name>Bytes In</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.10</oid>
+                </ifInOctets>
+                <ifOutOctets>
+                        <name>Bytes Out</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.16</oid>
+                </ifOutOctets>
+                <ifInUcastPkts>
+                        <name>Unicast Packets In</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.11</oid>
+                </ifInUcastPkts>
+                <ifOutUcastPkts>
+                        <name>Unicast Packets Out</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.17</oid>
+                </ifOutUcastPkts>
+                <ifInNUcastPkts>
+                        <name>Non-Unicast Packets In</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.12</oid>
+                </ifInNUcastPkts>
+                <ifOutNUcastPkts>
+                        <name>Non-Unicast Packets Out</name>
+                        <method>walk</method>
+                        <source>value</source>
+                        <direction>output</direction>
+                        <oid>.1.3.6.1.2.1.2.2.1.18</oid>
+                </ifOutNUcastPkts>
+		<ifInDiscards>
+			<name>Discarded Packets In</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.13</oid>
+		</ifInDiscards>
+		<ifOutDiscards>
+			<name>Discarded Packets Out</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.19</oid>
+		</ifOutDiscards>
+		<ifInErrors>
+			<name>Errors In</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.14</oid>
+		</ifInErrors>
+		<ifOutErrors>
+			<name>Errors Out</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.20</oid>
+		</ifOutErrors>
+		<ifUnknownIn>
+			<name>Unknown In</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.2.2.1.15</oid>
+		</ifUnknownIn>
+		<ifName>
+			<name>Name (IF-MIB)</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.1</oid>
+		</ifName>
+		<ifInMulticastPkts>
+			<name>Multicast Packets In</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.2</oid>
+		</ifInMulticastPkts>
+		<ifOutMulticastPkts>
+			<name>Multicast Packets Out</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.4</oid>
+		</ifOutMulticastPkts>
+		<ifInBroadcastPkts>
+			<name>Broadcast Packets In</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.3</oid>
+		</ifInBroadcastPkts>
+		<ifOutBroadcastPkts>
+			<name>Broadcast Packets Out</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.5</oid>
+		</ifOutBroadcastPkts>
+		<ifHCInOctets>
+			<name>Bytes In - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.6</oid>
+		</ifHCInOctets>
+		<ifHCOutOctets>
+			<name>Bytes Out - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.10</oid>
+		</ifHCOutOctets>
+		<ifHCInUcastPkts>
+			<name>Unicast Packets In - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.7</oid>
+		</ifHCInUcastPkts>
+		<ifHCOutUcastPkts>
+			<name>Unicast Packets Out - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.11</oid>
+		</ifHCOutUcastPkts>
+		<ifHCInMulticastPkts>
+			<name>Multicast Packets In - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.8</oid>
+		</ifHCInMulticastPkts>
+		<ifHCOutMulticastPkts>
+			<name>Multicast Packets Out - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.12</oid>
+		</ifHCOutMulticastPkts>
+		<ifHCInBroadcastPkts>
+			<name>Broadcast Packets In - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.9</oid>
+		</ifHCInBroadcastPkts>
+		<ifHCOutBroadcastPkts>
+			<name>Broadcast Packets Out - 64-bit Counters</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.13</oid>
+		</ifHCOutBroadcastPkts>
+		<ifHighSpeed>
+			<name>High Speed</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.15</oid>
+		</ifHighSpeed>
+		<ifAlias>
+			<name>Alias (IF-MIB)</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.31.1.1.1.18</oid>
+		</ifAlias>
+		<ifIP>
+			<name>IP Address</name>
+			<method>walk</method>
+			<source>OID/REGEXP:.*\.([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.2.1.4.20.1.2</oid>
+		</ifIP>
+	</fields>
+</interface>
+
