@@ -87,6 +87,8 @@ $isSwitch = 0x08;
 $isHost = 0x10;
 $isNexus = 0x200;
 $isWifi = 0x02; // 2 000010
+$isPhone = 0x90;
+
 
 $current_time = strtotime("now");
 
@@ -222,6 +224,8 @@ $use_ip_hostname = read_config_option("linkdiscovery_use_ip_hostname");
 $update_hostname = read_config_option("linkdiscovery_update_hostname");
 // wifi setup
 $keepwifi = read_config_option("linkdiscovery_keep_wifi");
+// phone setup
+$keepphone = read_config_option("linkdiscovery_keep_phone");
 // add the nu graphs from the old host, to the new host
 $snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
 // add the traffic graphs from the old host, to the new host
@@ -284,7 +288,7 @@ $sub_tree_id = read_config_option("linkdiscovery_sub_tree");
 if ($sub_tree_id <> 0)
 {
 	$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id. ' AND host_id=0 AND id='.$sub_tree_id);
-	if ( sizeof($parent) == 0 ) {
+	if ( count($parent) == 0 ) {
 		api_tree_delete_node_content($tree_id, 0 );
 	} else api_tree_delete_node_content( $parent, $sub_tree_id );
 } else { // for sure it's on tree, root one
@@ -328,7 +332,7 @@ function DisplayStack(){
 // Try CDP.
 //**********************
 function CDP_Discovery($CDPdeep, $seedhost ) {
-	global $cdpdevicename, $isSwitch, $isRouter, $isSRBridge, $isNexus, $isHost,  $keepwifi, $isWifi, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_array, $hostdiscovered, $goodtogo, $noscanhost;
+	global $cdpdevicename, $isSwitch, $isRouter, $isSRBridge, $isNexus, $isHost,  $keepwifi, $isWifi, $keepphone, $isPhone, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_array, $hostdiscovered, $goodtogo, $noscanhost;
 	
 linkdiscovery_debug("\n\n\nPool host: " . $seedhost. " deep: ". $CDPdeep ."\n");
 
@@ -347,7 +351,7 @@ linkdiscovery_debug("\n\n\nPool host: " . $seedhost. " deep: ". $CDPdeep ."\n");
 	
 	$isHostScanned = db_fetch_cell( "SELECT scanned FROM plugin_linkdiscovery_hosts where description='". $seedhost ."' OR hostname='".$seedhost ."'");
 	if( $isHostScanned == '1' ){
-linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". $isHostScanned . " from: " . $hostdiscovered[sizeof($hostdiscovered)-1]."\n");
+linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". $isHostScanned . " from: " . $hostdiscovered[count($hostdiscovered)-1]."\n");
 		return;
 	}
 	
@@ -364,7 +368,7 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 	if( $snmp )
 	{
 		// host is scanned now, otherwise we will do it again
-		db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='1' WHERE hostname='" . $hostdiscovered[sizeof($hostdiscovered)-1]."'" );
+		db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='1' WHERE hostname='" . $hostdiscovered[count($hostdiscovered)-1]."'" );
 
 		// loop through the list to find out which are switch and/or router
 		for( $nb=count($searchname)-1;$nb>=0;$nb-- ) 
@@ -373,7 +377,7 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 			$hostipcapa = array();
 			
 			// get the IP and capa of the device
-			$hostipcapa = hostgetipcapa( $hostdiscovered[sizeof($hostdiscovered)-1], $searchname[$nb]['oid']);
+			$hostipcapa = hostgetipcapa( $hostdiscovered[count($hostdiscovered)-1], $searchname[$nb]['oid']);
 
 			// what capacities we find on CDP
 			$CDPcapacities = hexdec(preg_replace('/[^0-9A-D]/', '', $hostipcapa['capa']));
@@ -391,6 +395,12 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 				else 
 					$goodtogo = 0;
 			}
+			if( ($CDPcapacities & $isPhone) ) {
+				if( $keepphone=='on' )
+					$goodtogo = $isPhone;
+				else 
+					$goodtogo = 0;
+			}
 				
 			if( $goodtogo != 0 ) {
 				// extract the IP from the CDP packet
@@ -401,19 +411,19 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 				$hostrecord_array['hostip'] = $hostip;
 				$hostrecord_array['type'] = $hostipcapa['type'];
 				
-linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hostrecord_array['description']. " nb: ". $nb ." capa: ".$hostipcapa['capa']." ip: ".$hostipcapa['ip']." good: ".$goodtogo ." on :" .$hostdiscovered[sizeof($hostdiscovered)-1]. " max: ".count($searchname)."\n");
+linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hostrecord_array['description']. " nb: ". $nb ." capa: ".$hostipcapa['capa']." ip: ".$hostipcapa['ip']." good: ".$goodtogo ." on :" .$hostdiscovered[count($hostdiscovered)-1]. " max: ".count($searchname)."\n");
 
 				// look for the snmp index of the interface, on the seedhost and on the discovered
-				$canreaditfpeer = linkdiscovey_get_intf($searchname[$nb], $hostdiscovered[sizeof($hostdiscovered)-1], $hostrecord_array);
+				$canreaditfpeer = linkdiscovey_get_intf($searchname[$nb], $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array);
 
 				// save peerhost and interface
-				linkdiscovery_save_data( $hostdiscovered[sizeof($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer );
+				linkdiscovery_save_data( $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer );
 	
 				if (($CDPdeep-1 > 0) ){
-					if( strcasecmp($hostdiscovered[sizeof($hostdiscovered)-2],$hostrecord_array['hostname']) != 0  ) 
+					if( strcasecmp($hostdiscovered[count($hostdiscovered)-2],$hostrecord_array['hostname']) != 0  ) 
 					{
-						if( $goodtogo == $isWifi ) {
-							linkdiscovery_debug(" Dropped WA: ".$goodtogo." (".$isWifi.")\n");
+						if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
+							linkdiscovery_debug(" Dropped WA or Phone: ".$goodtogo." (".$isWifi . $isPhone.")\n");
 						}
 						else {
 							// Get information on the new seed host
@@ -421,22 +431,25 @@ linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hos
 							CDP_Discovery( $CDPdeep-1, $seedhost );
 						}
 					} else {
-//linkdiscovery_debug( "Same host prev: " . $hostdiscovered[sizeof($hostdiscovered)-2] . " new:" . $hostrecord_array['hostname'] ."\n" );
+//linkdiscovery_debug( "Same host prev: " . $hostdiscovered[count($hostdiscovered)-2] . " new:" . $hostrecord_array['hostname'] ."\n" );
 					}
 				}
 			} else {
-linkdiscovery_debug( " dropped hostname: " . strtolower($searchname[$nb]['value']) . " capa: " .$CDPcapacities. " ip: " . $hostipcapa['ip'] . "\n");
+linkdiscovery_debug( " dropped hostname: " . strtolower($searchname[$nb]['value']) . " capa: " .$hostipcapa['capa']. " ip: " . $hostipcapa['ip'] . "\n");
 			}
 		} // end finded host, need to do thold
 		
 		$dbquery = db_fetch_assoc("SELECT id, hostname FROM host where hostname='" . $seedhost . "'" );
 		$seedhostid = $dbquery[0]['id'];
-linkdiscovery_debug("End pool: ". (sizeof($hostdiscovered)>0)?$hostdiscovered[sizeof($hostdiscovered)-1]:'' ." back to " . (sizeof($hostdiscovered)>1)?$hostdiscovered[sizeof($hostdiscovered)-2]:'' ."(".sizeof($hostdiscovered).")\n");
-	} else linkdiscovery_debug( " Can't do snmp on hostname " . (sizeof($hostdiscovered)>0)?$hostdiscovered[sizeof($hostdiscovered)-1]:'' . " from: " . (sizeof($hostdiscovered)>1)?$hostdiscovered[sizeof($hostdiscovered)-2]:'' . "(".sizeof($hostdiscovered).")\n");
+
+//linkdiscovery_debug("End pool: ". (count($hostdiscovered)>1)?$hostdiscovered[(count($hostdiscovered)-1)]:'' ." back to " . (count($hostdiscovered)>1)?$hostdiscovered[count($hostdiscovered)-2]:'' ."(".count($hostdiscovered).")\n");
+linkdiscovery_debug("End pool\n");
+
+	} else linkdiscovery_debug( " Can't do snmp on hostname " . !empty($hostdiscovered)?$hostdiscovered[count($hostdiscovered)-1]:'' . " from: " . (count($hostdiscovered)>1)?$hostdiscovered[count($hostdiscovered)-2]:'' . "(".count($hostdiscovered).")\n");
 
 	// remove the last host scanned
 	array_pop($hostdiscovered);
-	$seedhost = (sizeof($hostdiscovered)>0)?$hostdiscovered[sizeof($hostdiscovered)-1]:'';
+	$seedhost = (count($hostdiscovered)>0)?$hostdiscovered[count($hostdiscovered)-1]:'';
 	DisplayStack();
 }
 
@@ -463,7 +476,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$ret['capa'] = $searchcapa;
 	$ret['type'] = $searchtype;
 
-//linkdiscovery_debug("seed: ". $seedhost. " OID: " . $hostoidindex ." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
+//linkdiscovery_debug("seed: ". $seedhost. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
 
 	return $ret;
 }
@@ -471,7 +484,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 // get the interface name/index on the seedhost, and index on the find host 
 //**********************
 function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
-	global $itfnamearray, $itfidxarray, $cdpinterfacename, $cdpremoteitfname, $snmpifdescr, $snmp_array, $goodtogo, $isWifi;
+	global $itfnamearray, $itfidxarray, $cdpinterfacename, $cdpremoteitfname, $snmpifdescr, $snmp_array, $goodtogo, $isWifi, $isPhone;
 
 	$ret = false;
 
@@ -482,7 +495,7 @@ function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
 
 	// sub-index id
 	$cdpsnmpsubitfidx = substr( $itfidx, strlen($cdpinterfacename.$cdpsnmpitfidx)+2 );
-linkdiscovery_debug("  Get interface seedhost: ".$seedhost." interface: ".$itfidx." hostrec: ".var_dump($hostrecord_array)."\n" );
+//linkdiscovery_debug("  Get interface seedhost: ".$seedhost." interface: ".$itfidx." hostrec: ".var_dump($hostrecord_array)."\n" );
 
 	// interface array index of the : source, dest
 	$itfidxarray['source'] = $cdpsnmpitfidx;
@@ -493,8 +506,9 @@ linkdiscovery_debug("  Get interface seedhost: ".$seedhost." interface: ".$itfid
 
 	$itfnamearray['dest'] = cacti_snmp_get( $seedhost, $snmp_array['snmp_community'], $cdpremoteitfname.".".$cdpsnmpitfidx.".".$cdpsnmpsubitfidx, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
-	if( $goodtogo != $isWifi ) 
+	if( $goodtogo != $isWifi && $goodtogo != $isPhone ) 
 	{
+linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ."\n");
 		// Get intf index on the destination host, based on the name find on the seedhost
 		$itfdstarray = cacti_snmp_walk( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpifdescr, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
@@ -509,13 +523,13 @@ linkdiscovery_debug("  Get interface seedhost: ".$seedhost." interface: ".$itfid
 			}
 			$ret = true;
 
-linkdiscovery_debug("  Find interface seedhost: ".$seedhost." interface: ".var_dump($itfidxarray)." indx: ".$cdpsnmpitfidx." sub-sub: ".$cdpsnmpsubitfidx."\n" );
+//linkdiscovery_debug("  Find interface seedhost: ".$seedhost." interface: ".var_dump($itfidxarray)." indx: ".$cdpsnmpitfidx." sub-sub: ".$cdpsnmpsubitfidx."\n" );
 		} else {
 //linkdiscovery_debug("  snmp host " . $hostrecord_array['hostname'] . " Interface error can't read OID: ".$cdpinterfacename."\n");
 			$ret = false;
 		}
 	} else {
-//linkdiscovery_debug("  snmp wifi " . $hostrecord_array['hostname'] ."\n");
+linkdiscovery_debug("  snmp wifi  or phone no snmp for interface for: " . $hostrecord_array['hostname'] ."\n");
 		$ret = false;
 	}
 	
@@ -524,55 +538,70 @@ linkdiscovery_debug("  Find interface seedhost: ".$seedhost." interface: ".var_d
 
 //**********************
 function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
-	global $itfnamearray, $itfidxarray,	$snmp_array, $monitor, $goodtogo, $isWifi, $update_hostname;
+	global $itfnamearray, $itfidxarray,	$snmp_array, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname;
 
-	// if it's a Wifi we don't save the host, but the link
-	if( $goodtogo != $isWifi )
-	{
-		// check if the host does not exist, and we save
-		// check if the host allready existe into cacti
-		$dbquery = db_fetch_assoc("SELECT id, hostname, description FROM host where hostname='" . $hostrecord_array['hostname'] . "' OR description='" . $hostrecord_array['description'] . "'" );
+	// if it's a Wifi or a IP phone we save the host, and the link
+	// check if the host does not exist, and we save
+	// check if the host allready existe into cacti
+	$dbquery = db_fetch_assoc("SELECT id, hostname, description FROM host where hostname='" . $hostrecord_array['hostname'] . "' OR description='" . $hostrecord_array['description'] . "'" );
 //linkdiscovery_debug("   save peerhost: " .$hostrecord_array['hostname']." desc: ". $hostrecord_array['description']."\n" );
 
-		if ( sizeof($dbquery) == 0 ){
-			// Save to cacti
-			/*function api_device_save($id, $host_template_id, $description, $hostname, $snmp_community, $snmp_version,
+	if ( count($dbquery) == 0 ){
+		// Save to cacti
+		/*function api_device_save($id, $host_template_id, $description, $hostname, $snmp_community, $snmp_version,
         $snmp_username, $snmp_password, $snmp_port, $snmp_timeout, $disabled,
         $availability_method, $ping_method, $ping_port, $ping_timeout, $ping_retries,
         $notes, $snmp_auth_protocol, $snmp_priv_passphrase, $snmp_priv_protocol, $snmp_context, $snmp_engine_id, $max_oids, $device_threads, $poller_id = 1, $site_id = 1, $external_id = '') {
 */
-			$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $hostrecord_array['type'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'] );
-
-			if($new_hostid == 0) {
-				linkdiscovery_debug("   api Save error: ".$new_hostid." host: ".$hostrecord_array['description'] . $hostrecord_array['hostname']."\n");
-				return;
-			}
-		
-			if ($monitor == 'on') {
-				db_execute("update host set monitor='on' where id=" . $new_hostid );
-			}
-
-			// Set new host to discovery tree
-			linkdiscovery_add_tree ($new_hostid);
-			// graph the CPU
-			linkdiscovery_graph_cpu($new_hostid);
-		} else {
-			$new_hostid = $dbquery[0]['id'];
-			if ( $update_hostname ) {
-				db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
-			}
+		// if it's a phone or Wifi don't use any template, and check only via ping
+		$tmp_snmp_array = $snmp_array;
+		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
+			$snmp_array["host_template_id"] 	= '0';
+			$snmp_array["availability_method"]  = '3';
+			$snmp_array["ping_method"]          = '1';
+			$snmp_array["snmp_version"] 		= '0';
 		}
 
-		linkdiscovery_save_host( $new_hostid, $hostrecord_array );
-	} else $new_hostid = 0;
+		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $hostrecord_array['type'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'] );
+
+// restore the default snmp_array
+		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
+			// do not monitor Wifi and Phone
+			db_execute("update host set monitor='' where id=" . $new_hostid );
+			$snmp_array = $tmp_snmp_array;
+		}
+
+		if($new_hostid == 0) {
+			linkdiscovery_debug("   api Save error: ".$new_hostid." host: ".$hostrecord_array['description'] . $hostrecord_array['hostname']."\n");
+			return;
+		}
+		
+		if ($monitor == 'on') {
+			db_execute("update host set monitor='on' where id=" . $new_hostid );
+		}
+
+		// Set new host to discovery tree
+		linkdiscovery_add_tree ($new_hostid);
+		// graph the CPU
+		if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
+			linkdiscovery_graph_cpu($new_hostid);
+		}
+	} else {
+		$new_hostid = $dbquery[0]['id'];
+		if ( $update_hostname ) {
+			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
+		}
+	}
+
+	linkdiscovery_save_host( $new_hostid, $hostrecord_array );
 	
 	// save the source host
 	$dbquery = db_fetch_assoc("SELECT id, hostname FROM host where description='". $seedhost ."' OR hostname='".$seedhost. "'" );
 	$seedhostid = $dbquery[0]['id'];
-linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']." -> host_dst:".$new_hostid." itf_dst: ".$itfidxarray['dest']."\n" );
+//linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']." -> host_dst:".$new_hostid." itf_dst: ".$itfidxarray['dest']."\n" );
 
 	// save interface information
-	if ( $canpeeritf ) 
+	if ( $canpeeritf && $goodtogo != $isWifi && $goodtogo != $isPhone ) 
 	{
 		db_execute("REPLACE INTO plugin_linkdiscovery_intf (host_id_src, host_id_dst, snmp_index_src, snmp_index_dst ) 
 				VALUES ("
@@ -582,7 +611,9 @@ linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['sourc
 		. $itfidxarray['dest'] . " )");
 	}
 	// and create the needed graphs, all the time
-	linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'] );
+	if( $goodtogo != $isPhone ) {
+		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'] );
+	}
 }
 
 //**********************
@@ -770,12 +801,13 @@ children
 */
 
 	$tree_id = read_config_option("linkdiscovery_tree"); // sous graph_tree_itesm c'est la valeur graph_tree_id
-	$sub_tree_id = read_config_option("linkdiscovery_sub_tree");
+	$tmp_sub_tree_id = read_config_option("linkdiscovery_sub_tree");
+	$sub_tree_id = empty($tmp_sub_tree_id)?'0':$tmp_sub_tree_id;
 	
 	// if the sub_tree_id is on graph_tree_items, that mean we have a parent 
 	$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id.' AND host_id=0 AND local_graph_id=0 AND id=' .$sub_tree_id );
-linkdiscovery_debug("tree: ". $tree_id ."--". $sub_tree_id. " host: ". $host_id. " parent " .$parent. "\n");
-	if( sizeof($parent) ) {
+linkdiscovery_debug("tree: ". $tree_id ." -- ". $sub_tree_id. " host: ". $host_id. " parent " .empty($parent)?'0':var_dump($parent). "\n");
+	if( !empty($parent) ) {
 		api_tree_item_save(0, $tree_id, 3, $sub_tree_id, '', 0, $host_id, 1, 1, false);
 	} else {
 		// just save under the graph_tree_item, but with sub_tree_id as 0
@@ -786,7 +818,7 @@ linkdiscovery_debug("tree: ". $tree_id ."--". $sub_tree_id. " host: ". $host_id.
 function gethostip( $hostrecord ){
 // hex value: 0A 55 00 0B -> 10 85 00 11
 	$ip = explode( " ", $hostrecord );
-	if( sizeof($ip) == 4 ) {
+	if( count($ip) == 4 ) {
 		$ip[0] = hexdec($ip[0]);
 		$ip[1] = hexdec($ip[1]);
 		$ip[2] = hexdec($ip[2]);
