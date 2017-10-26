@@ -123,7 +123,7 @@ function linkdiscovery_check_dependencies() {
 function plugin_linkdiscovery_version () {
 	return array(
 		'name'     => 'LinkDiscovery',
-		'version'  => '0.33',
+		'version'  => '0.40',
 		'longname' => 'Network Link Discovery',
 		'author'   => 'Arno Streuli',
 		'homepage' => 'http://cactiusers.org',
@@ -248,6 +248,12 @@ function linkdiscovery_config_settings () {
 			'method' => "drop_array",
 			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
+                'linkdiscovery_errors_graph' => array(
+                        'friendly_name' => 'Error Graph',
+                        'description' => 'Enable Errors and Discard packets Graph, and which type to use',
+                        'method' => "drop_array",
+                        'array' => linkdiscovery_get_graph_template('Errors'), 
+                        ),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
 			'description' => 'Enable Status Threshold, and which template to use',
