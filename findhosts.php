@@ -217,6 +217,8 @@ $keepwifi = read_config_option("linkdiscovery_keep_wifi");
 $snmp_traffic_query_graph_id = read_config_option("linkdiscovery_traffic_graph");
 // add the nu graphs from the old host, to the new host
 $snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
+// add the error graphs from the old host, to the new host
+$snmp_errors_query_graph_id = read_config_option("linkdiscovery_errors_graph");
 // add the status graphs, from the new host
 $snmp_status_query_graph_id = read_config_option("linkdiscovery_status_graph");
 // should we monitor the host
@@ -614,7 +616,7 @@ function linkdiscovery_graph_cpu( $new_hostid ){
 
 //**********************
 function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
-	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id;
+	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id, $snmp_errors_query_graph_id;
 
 /* create_complete_graph_from_template - creates a graph and all necessary data sources based on a
         graph template
@@ -697,6 +699,34 @@ linkdiscovery_debug("   Graph Packets exist: " .$seedhostid . " id: " .$packets_
 		}
 	}
 	
+    // should we do a graph for error packet
+    // snmp_errors_query_graph_id=2
+    // errors_graph_template_id=22
+    // snmp_query_id=10
+    if( $snmp_errors_query_graph_id > 0) {
+        $return_array = array();
+        $errors_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_errors_query_grap
+h_id);
+        $snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_errors_query_graph_id );
+   
+        // take interface to be monitored, on the new host
+        $existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$errors_graph_template_id." AND host_id
+=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
+
+        if( $existsAlready == 0 ) {
+            $empty=array();
+            $snmp_query_array["snmp_query_id"] = $snmp_query_id;
+            $snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
+            $snmp_query_array["snmp_query_graph_id"] = $snmp_errors_query_graph_id;
+            $snmp_query_array["snmp_index"] = $src_intf;
+            $return_array = create_complete_graph_from_template( $errors_graph_template_id, $seedhostid, $snmp_query_array, $empty);
+
+linkdiscovery_debug("   Created Errors graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
+        } else {
+linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$errors_graph_template_id." exist: ".$existsAlready."\n" );
+        }
+    }
+
 	// should we do a graph for the status
 	if( $snmp_status_query_graph_id > 0) {
 		$return_array = array();
