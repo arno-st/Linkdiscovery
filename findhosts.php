@@ -57,6 +57,7 @@ include_once($config["base_path"] . '/lib/html_form_template.php');
 include_once($config["base_path"] . '/lib/template.php');
 include_once($config["base_path"] . "/plugins/thold/thold_functions.php");
 include_once($config["base_path"] . "/plugins/thold/setup.php");
+include_once($config['base_path'] . "/plugins/linkdiscovery/parse-url.php");
 
 set_default_action('link_Discovery');
 linkdiscovery_check_upgrade();
@@ -81,13 +82,15 @@ $lldpRemOsName       = ".1.0.8802.1.1.2.1.4.1.1.10.0";
 
 $snmpifdescr		 = ".1.3.6.1.2.1.2.2.1.2";
 $snmpsysname		 = ".1.3.6.1.2.1.1.5.0"; // system name
+$snmpserialno		= ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
+
 $isRouter = 0x01;
 $isSRBridge = 0x04;
 $isSwitch = 0x08;
 $isHost = 0x10;
 $isNexus = 0x200;
-$isWifi = 0x02; // 2 000010
-$isPhone = 0x90;
+$isWifi = 0x02; // 2      000010
+$isPhone = 0x80; //0x90 et équivalent isHost; // 144 10010000 
 
 
 $current_time = strtotime("now");
@@ -240,6 +243,11 @@ $thold_status_graph_template = read_config_option("linkdiscovery_status_thold");
 $snmp_community = read_config_option("snmp_community");
 $snmp_community = ($snmp_community=='')?$known_hosts['snmp_community']:$snmp_community;
 
+// check if extenddb is present, if so use it
+if( db_fetch_cell("SELECT directory FROM plugin_config WHERE directory='extenddb' AND status=1") != "") {
+	$extenddb = true;
+}
+
 linkdiscovery_debug("Link Discovery is now running\n");
 
 // Get information on the seed known host
@@ -385,23 +393,20 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 			$goodtogo = 0; // default value
 			if( ($CDPcapacities & $isSwitch) ) {
 					$goodtogo = $isSwitch;
-			}
-			if( ($CDPcapacities & $isRouter) ){
+			} else if( ($CDPcapacities & $isRouter)  ){
 					$goodtogo = $isRouter;
-			} 
-			if( ($CDPcapacities & $isWifi) ) {
+			} else if( ($CDPcapacities & $isWifi) ) {
 				if( $keepwifi=='on' )
 					$goodtogo = $isWifi;
 				else 
 					$goodtogo = 0;
-			}
-			if( ($CDPcapacities & $isPhone) ) {
+			} else if( ($CDPcapacities & $isPhone) ) {
 				if( $keepphone=='on' )
 					$goodtogo = $isPhone;
 				else 
 					$goodtogo = 0;
-			}
-				
+			} else $goodtogo = 0;
+			
 			if( $goodtogo != 0 ) {
 				// extract the IP from the CDP packet
 				$hostip = gethostip($hostipcapa['ip']);
@@ -538,7 +543,7 @@ linkdiscovery_debug("  snmp wifi  or phone no snmp for interface for: " . $hostr
 
 //**********************
 function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
-	global $itfnamearray, $itfidxarray,	$snmp_array, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname;
+	global $itfnamearray, $itfidxarray,	$snmp_array, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, $snmpserialno, $extenddb;
 
 	// if it's a Wifi or a IP phone we save the host, and the link
 	// check if the host does not exist, and we save
@@ -562,19 +567,20 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
 			$snmp_array["snmp_version"] 		= '0';
 		}
 
-		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $hostrecord_array['type'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'] );
+		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $snmp_array['notes'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'] );
 
-// restore the default snmp_array
+		// do not monitor Wifi and Phone, and not emailing list
 		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
-			// do not monitor Wifi and Phone
 			db_execute("update host set monitor='' where id=" . $new_hostid );
+			db_execute("update host set thold_send_email=0 where id=" . $new_hostid );
+			// restore the default snmp_array
 			$snmp_array = $tmp_snmp_array;
 		}
 
 		if($new_hostid == 0) {
 			linkdiscovery_debug("   api Save error: ".$new_hostid." host: ".$hostrecord_array['description'] . $hostrecord_array['hostname']."\n");
 			return;
-		}
+		} 
 		
 		if ($monitor == 'on') {
 			db_execute("update host set monitor='on' where id=" . $new_hostid );
@@ -591,6 +597,67 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
 		if ( $update_hostname ) {
 			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
 		}
+	}
+	// save the type and serial number to the new host's record
+	if( $extenddb && !empty($hostrecord_array['hostname']) ) {
+		// get the serial number and type, not for wifi or phone
+		if( $goodtogo != $isWifi && $goodtogo != $isPhone && !empty($hostrecord_array['hostname']) ) {
+			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
+			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
+			
+			$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+				
+			if( !empty( $serialno) ) {
+				db_execute("update host set serial_no='".$serialno. "' where id=" . $new_hostid );
+			}
+		} else if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { // get IP Phone information
+		linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
+			$phonenumbers = array();
+			$number = array();
+			$tagname = array( "téléphone", "Phone 1 DN", "Phone 2 DN" ); //Numéro de téléphone, NR téléphone, Phone n DN
+			$phonenumbers = get_page( $hostrecord_array['hostname'], $tagname );
+			if( !empty($phonenumbers) ) {
+				foreach($phonenumbers as $phonenumber) {
+					$tmpnumber = trim(substr( $phonenumber, strpos($phonenumber, $tagname)+strlen($tagname) ) );
+					if( count(explode(" ", $tmpnumber)) > 1 ) {
+						$tmp = explode( " ", $tmpnumber);
+						$number[] = end($tmp);
+					} else $number[] = $tmpnumber;
+				}
+				$numbers = implode( ",\n", $number );
+				linkdiscovery_debug(" numbers: ".$numbers."\n");
+				db_execute("update host set notes='". $numbers . "' where id=" . $new_hostid );
+			}
+			
+			// get the serial number
+			$number = null;
+			$tagname = array( "série", "Serial number" ); //Serial Number, Numéro de série
+			$serialnumbers = get_page( $hostrecord_array['hostname'], $tagname );
+			if( !empty($serialnumbers) ) {
+				foreach($serialnumbers as $serialnumber) {
+					$number[] = trim( substr( $serialnumber, strpos($serialnumber, $tagname)+strlen($tagname) ) );
+				}
+				$numbers = implode( ",\n", $number );
+				linkdiscovery_debug(" ser numbers: ".$numbers."\n");
+				db_execute("update host set serial_no='". $numbers . "' where id=" . $new_hostid );
+			}
+			
+			// get the model number
+			$number = null;
+			$tagname = array( "modèle", "Product ID" ); // product ID
+			$modeles = get_page( $hostrecord_array['hostname'], $tagname );
+			if( !empty($modeles) ) {
+				foreach($modeles as $modele) {
+					$number[] = trim(substr( $modele, strpos($modele, $tagname)+strlen($tagname) ));
+				}
+				$numbers = implode( ",\n", $number );
+				linkdiscovery_debug(" model numbers: ".$numbers."\n");
+				db_execute("update host set type='". $numbers . "' where id=" . $new_hostid );
+			}
+		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) ) { // Get the WA information
+			db_execute("update host set type='".$hostrecord_array['type']. "' where id=" . $new_hostid );
+		}
+
 	}
 
 	linkdiscovery_save_host( $new_hostid, $hostrecord_array );
@@ -610,7 +677,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
 		. $itfidxarray['source'] . ", "
 		. $itfidxarray['dest'] . " )");
 	}
-	// and create the needed graphs, all the time
+	// and create the needed graphs, except for Phone
 	if( $goodtogo != $isPhone ) {
 		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'] );
 	}
@@ -806,7 +873,6 @@ children
 	
 	// if the sub_tree_id is on graph_tree_items, that mean we have a parent 
 	$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id.' AND host_id=0 AND local_graph_id=0 AND id=' .$sub_tree_id );
-linkdiscovery_debug("tree: ". $tree_id ." -- ". $sub_tree_id. " host: ". $host_id. " parent " .empty($parent)?'0':var_dump($parent). "\n");
 	if( !empty($parent) ) {
 		api_tree_item_save(0, $tree_id, 3, $sub_tree_id, '', 0, $host_id, 1, 1, false);
 	} else {
