@@ -66,7 +66,6 @@ function linkdiscovery_check_upgrade() {
 	$current = $version['version'];
 	$old     = read_config_option('plugin_linkdiscovery_version');
 	if ($current != $old) {
-		monitor_setup_table ();
 
 		// Set the new version
 		db_execute("UPDATE plugin_config SET version='$current' WHERE directory='linkdiscovery'");
@@ -76,6 +75,7 @@ function linkdiscovery_check_upgrade() {
 			author='"  . $version['author'] . "', 
 			webpage='" . $version['homepage'] . "' 
 			WHERE directory='" . $version['name'] . "' ");
+
 	}
 }
 
