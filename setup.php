@@ -33,7 +33,7 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'utilities_list', 'linkdiscovery_utilities_list', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'device_remove', 'linkdiscovery_device_remove', 'setup.php');
 
-	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php', 'Plugin -> LinkDiscovery', 1);
+	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
 
 	linkdiscovery_setup_table();
 }
@@ -268,6 +268,9 @@ function linkdiscovery_show_tab () {
 		}else{
 			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/linkdiscovery.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover_down.gif" alt="LinkDiscovery" align="absmiddle" border="0"></a>';
 		}
+	}
+	
+	if (api_user_realm_auth('phones.php') && read_config_option('linkdiscovery_keep_phone') ) {
 
 		if (!substr_count($_SERVER["REQUEST_URI"], "phones.php")) {
 			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/phones.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_phones.gif" alt="Phones" align="absmiddle" border="0"></a>';
@@ -323,8 +326,19 @@ function linkdiscovery_config_arrays () {
 	
 }
 
-function linkdiscovery_draw_navigation_text ($nav) {
-   $nav['linkdiscovery.php:'] = array('title' => __('LinkDiscovery'), 'mapping' => '', 'url' => 'linkdiscovery.php', 'level' => '1');
+function routerconfigs_draw_navigation_text ($nav) {
+	$nav['linkdiscovery.php:'] = array(
+		'title' => __('Linkdiscovery', 'linkdiscovery'),
+		'mapping' => 'index.php:',
+		'url' => 'linkdiscovery.php',
+		'level' => '1'
+	);
+	$nav['phones.php:'] = array(
+		'title' => __('Phones list', 'linkdiscovery'),
+		'mapping' => 'index.php:',
+		'url' => 'phones.php',
+		'level' => '1'
+	);
 
 	return $nav;
 }
@@ -349,7 +363,7 @@ function linkdiscovery_setup_table () {
 	$data['columns'][] = array('name' => 'scanned', 'type' => 'tinyint(1)', 'default' => '0');
 	$data['primary'] = 'description';
 	$data['keys'][] = array('name' => 'hostname', 'columns' => 'hostname');
-	$data['type'] = 'MyISAM';
+	$data['type'] = 'InnoDB';
 	$data['comment'] = 'Plugin linkdiscovery - Table of linkdiscovery discovered hosts';
 	api_plugin_db_table_create('linkdiscovery', 'plugin_linkdiscovery_hosts', $data);
 
@@ -361,7 +375,7 @@ function linkdiscovery_setup_table () {
 	$data['primary'] = "host_id_src`,`snmp_index_src";
 	$data['keys'][] = array('name' => 'host_id_src', 'columns' => 'host_id_src');
 	$data['keys'][] = array('name' => 'snmp_index_src', 'columns' => 'snmp_index_src');
-	$data['type'] = 'MyISAM';
+	$data['type'] = 'InnoDB';
 	$data['comment'] = 'Plugin linkdiscovery - Table of linkdiscovery discovered interface';
 	api_plugin_db_table_create('linkdiscovery', 'plugin_linkdiscovery_intf', $data);
 }

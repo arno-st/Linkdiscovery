@@ -300,9 +300,10 @@ if ($sub_tree_id <> 0)
 		api_tree_delete_node_content($tree_id, 0 );
 }
 
-db_execute("truncate table plugin_linkdiscovery_hosts");
-db_execute("truncate table plugin_linkdiscovery_intf");
-// db_execute("DELETE FROM graph_tree_items where graph_tree_id=".$tree_id ); // SOLVE the TREE id that change in 1.x
+// remove the truncate function ,so the table is still reflecting all ink discovered, and just updated
+//db_execute("truncate table plugin_linkdiscovery_hosts");
+db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='0'"); // clear the scanned field
+//db_execute("truncate table plugin_linkdiscovery_intf");
 
 // Seed the relevant arrays with known information.
 /* besoin des information suivante:
@@ -367,11 +368,14 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost . " scanned: ". 
 	// Look for the name of the devices connected
 	$searchname = cacti_snmp_walk( $seedhost, $snmp_array['snmp_community'], $cdpdevicename, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 	// check if we where able to do an SNMP query
-	if( $searchname ) $snmp=true;
-	else $snmp=false;
+	if( $searchname ) {
+		$snmp=true;
+	}
+	else {
+		$snmp=false;
+	}
 	
-	if( $snmp )
-	{
+	if( $snmp ) {
 		// host is scanned now, otherwise we will do it again
 		db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='1' WHERE hostname='" . $hostdiscovered[count($hostdiscovered)-1]."'" );
 
@@ -419,7 +423,7 @@ linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hos
 				$canreaditfpeer = linkdiscovey_get_intf($searchname[$nb], $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array);
 
 				// save peerhost and interface
-				linkdiscovery_save_data( $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer );
+				linkdiscovery_save_data( $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer,	$snmp_array );
 	
 				if (($CDPdeep-1 > 0) ){
 					if( strcasecmp($hostdiscovered[count($hostdiscovered)-2],$hostrecord_array['hostname']) != 0  ) 
@@ -539,8 +543,8 @@ linkdiscovery_debug("  snmp wifi  or phone no snmp for interface for: " . $hostr
 }
 
 //**********************
-function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
-	global $itfnamearray, $itfidxarray,	$snmp_array, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, $snmpserialno, $extenddb;
+function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $snmp_array ){
+	global $itfnamearray, $itfidxarray, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, $snmpserialno, $extenddb;
 
 	// if it's a Wifi or a IP phone we save the host, and the link
 	// check if the host does not exist, and we save
@@ -556,23 +560,23 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf ){
         $notes, $snmp_auth_protocol, $snmp_priv_passphrase, $snmp_priv_protocol, $snmp_context, $snmp_engine_id, $max_oids, $device_threads, $poller_id = 1, $site_id = 1, $external_id = '') {
 */
 		// if it's a phone or Wifi don't use any template, and check only via ping
-		$tmp_snmp_array = $snmp_array;
 		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
 			$snmp_array["host_template_id"] 	= '0';
 			$snmp_array["availability_method"]  = '3';
 			$snmp_array["ping_method"]          = '1';
 			$snmp_array["snmp_version"] 		= '0';
-		}
+			if( $goodtogo == $isPhone ){
+				$snmp_array["disable"]				= 'on';
+			}
+		} 
 
 		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $snmp_array['notes'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'], 1, 0 );
-linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
+linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_hostid."\n");
 
 		// do not monitor Wifi and Phone, and not emailing list
 		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
 			db_execute("update host set monitor='' where id=" . $new_hostid );
 			db_execute("update host set thold_send_email=0 where id=" . $new_hostid );
-			// restore the default snmp_array
-			$snmp_array = $tmp_snmp_array;
 		}
 
 		if($new_hostid == 0) {
@@ -608,20 +612,30 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 			if( !empty( $serialno) ) {
 				db_execute("update host set serial_no='".$serialno. "' where id=" . $new_hostid );
 			}
-		} else if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { // get IP Phone information
+		} else if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
+			// set the flag isPhone
+			db_execute("update host set isPhone='on' where id=" . $new_hostid );
+
+		// get Phone number
 		linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
 			$phonenumbers = array();
 			$number = array();
-			$tagname = array( "téléphone", "Phone 1 DN", "Phone 2 DN" ); //Numéro de téléphone, NR téléphone, Phone n DN
+			$tagname = array( "téléphone", "dn" ); //Numéro de téléphone, NR téléphone, Phone n DN
 			$phonenumbers = get_page( $hostrecord_array['hostname'], $tagname );
 			if( !empty($phonenumbers) ) {
 				foreach($phonenumbers as $phonenumber) {
 					$num_array = explode( " ", $phonenumber);
-					$tmpnumber = str_replace( $tagname, "", $num_array[count($num_array)-1] );
+					$tmpnumber = str_ireplace( $tagname, "", $num_array[count($num_array)-1] );
 					if( count(explode(" ", $tmpnumber)) > 1 ) {
 						$tmp = explode( " ", $tmpnumber);
-						$number[] = end($tmp);
-					} else $number[] = $tmpnumber;
+						if( is_numeric( end($tmp) ) ) {
+							$number[] = end($tmp);
+						}
+					} else {
+						if( is_numeric($tmpnumber) ) {
+							$number[] = $tmpnumber;
+						}
+					}
 				}
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" numbers: ".$numbers."\n");
@@ -630,12 +644,12 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 			
 			// get the serial number
 			$number = null;
-			$tagname = array( "série", "number", "Number" ); //Serial Number, Numéro de série
+			$tagname = array( "série", "serial number" ); //Serial Number, Numéro de série
 			$serialnumbers = get_page( $hostrecord_array['hostname'], $tagname );
 			if( !empty($serialnumbers) ) {
 				foreach($serialnumbers as $serialnumber) {
 					$num_array = explode( " ", $serialnumber);
-					$number[] = str_replace($tagname, "", $num_array[count($num_array)-1] );
+					$number[] = str_ireplace($tagname, "", $num_array[count($num_array)-1] );
 				}
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" ser numbers: ".$numbers."\n");
@@ -644,12 +658,12 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 			
 			// get the model number
 			$number = null;
-			$tagname = array( "modèle", "Product ID" ); // product ID
+			$tagname = array( "modèle", "Product ID", "Model Number" ); // product ID
 			$modeles = get_page( $hostrecord_array['hostname'], $tagname );
 			if( !empty($modeles) ) {
 				foreach($modeles as $modele) {
 					$num_array = explode(" ",$modele);
-					$number[] = str_replace($tagname, "", $num_array[count($num_array)-1] );
+					$number[] = str_ireplace($tagname, "", $num_array[count($num_array)-1] );
 				}
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" model numbers: ".$numbers."\n");
@@ -658,7 +672,7 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 			
 			// get the site_id based on the seedhost
 			$dbquery = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost ."' OR hostname='".$seedhost. "'" );
-			linkdiscovery_debug(" site_id: ".$dbquery."\n");
+			linkdiscovery_debug(" site_id1: ".$dbquery."\n");
 			if( !empty($dbquery) ) {
 				db_execute("update host set site_id=". $dbquery . " where id=" . $new_hostid );
 			}
@@ -668,7 +682,7 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 
 			// get the site_id based on the seedhost
 			$dbquery = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost ."' OR hostname='".$seedhost. "'" );
-			linkdiscovery_debug(" site_id: ".$dbquery."\n");
+			linkdiscovery_debug(" site_id2: ".$dbquery."\n");
 			if( !empty($dbquery) ) {
 				db_execute("update host set site_id=". $dbquery . " where id=" . $new_hostid );
 			}
@@ -684,15 +698,16 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved\n");
 //linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']." -> host_dst:".$new_hostid." itf_dst: ".$itfidxarray['dest']."\n" );
 
 	// save interface information
-	if ( $canpeeritf && $goodtogo != $isWifi && $goodtogo != $isPhone ) 
-	{
+/*	if ( $canpeeritf && $goodtogo != $isWifi && $goodtogo != $isPhone ) 
+	{*/
 		db_execute("REPLACE INTO plugin_linkdiscovery_intf (host_id_src, host_id_dst, snmp_index_src, snmp_index_dst ) 
 				VALUES ("
 		. $seedhostid . ", "
 		. $new_hostid . ", "
 		. $itfidxarray['source'] . ", "
 		. $itfidxarray['dest'] . " )");
-	}
+//	}
+
 	// and create the needed graphs, except for Phone
 	if( $goodtogo != $isPhone ) {
 		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'] );
@@ -706,7 +721,7 @@ function linkdiscovery_save_host( $hostid, $hostrecord_array, $scanned='0' ){
 	$hostexist = db_fetch_cell("SELECT id from plugin_linkdiscovery_hosts WHERE hostname='".$hostrecord_array['hostname']."' OR description='".$hostrecord_array['description']."'");
 	if( $hostexist == 0 ) {
 		// save it to the discovery table for later use
-		$ret = db_execute("REPLACE INTO plugin_linkdiscovery_hosts (id, host_template_id, description, hostname, community, snmp_version, snmp_username, snmp_password, snmp_auth_protocol, snmp_priv_passphrase, snmp_priv_protocol, snmp_context, scanned ) 
+		$ret = db_execute("INSERT INTO plugin_linkdiscovery_hosts (id, host_template_id, description, hostname, community, snmp_version, snmp_username, snmp_password, snmp_auth_protocol, snmp_priv_passphrase, snmp_priv_protocol, snmp_context, scanned ) 
 				VALUES ('"
 		. $hostid . "', '"
 		. $snmp_array['host_template_id'] . "', '"
@@ -722,7 +737,7 @@ function linkdiscovery_save_host( $hostid, $hostrecord_array, $scanned='0' ){
 		. $snmp_array['snmp_context'] . "', '"
 		. $scanned . "')");
 
-		//linkdiscovery_debug("Saved Host, descr: " . $hostrecord_array['description'] ." hostname: " . $hostrecord_array['hostname']." res: ".$ret."\n" );
+		linkdiscovery_debug("Saved Host, descr: " . $hostrecord_array['description'] ." hostname: " . $hostrecord_array['hostname']." res: ".$ret."\n" );
 	} else {
 		linkdiscovery_debug(" host exist ". $hostrecord_array['hostname']." id: ".$hostid."\n");
 	}

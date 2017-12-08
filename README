@@ -37,6 +37,6 @@
 0.4 Addeds option for LLDP support
 1.0 SCacti 1.x Compliant
 1.0.2 added optional graph for non unicast packet
-1.0.3 added the option to keep trace of IP phone, and keep the phone number. And keep WiFi AP monitored with pin
-g
-1.1.0 addedd the field Serial No and type into host table
+1.0.3 added the option to keep trace of IP phone, and keep the phone number. And keep WiFi AP monitored with ping
+1.1.0 if extenddb is present we keep serial_no and type into the extention of the DB
+1.1.1 added the management of the flag isPhone if extenddb is present
