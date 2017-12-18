@@ -285,8 +285,6 @@ function linkdiscovery_config_arrays () {
 
 	$linkdiscovery_poller_frequencies = array(
 		"disabled" => "Disabled",
-		"60" => "Every 1 Hour",
-		"120" => "Every 2 Hours",
 		"240" => "Every 4 Hours",
 		"360" => "Every 6 Hours",
 		"480" => "Every 8 Hours",
