@@ -33,7 +33,7 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'utilities_list', 'linkdiscovery_utilities_list', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'device_remove', 'linkdiscovery_device_remove', 'setup.php');
 
-	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php', 'Plugin -> LinkDiscovery', 1);
+	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
 
 	linkdiscovery_setup_table();
 }
@@ -170,35 +170,47 @@ function linkdiscovery_config_settings () {
 			"friendly_name" => "Graph creation",
 			"method" => "spacer",
 			),
-		"linkdiscovery_host_template" => array(
+/*		"linkdiscovery_host_template" => array(
 			"friendly_name" => "host Template",
 			"description" => "Select a Host Template that device will be matched to.",
 			"method" => "drop_array",
 			"array" => $linkdiscovery_get_host_template,
-			),
+			),*/
 		'linkdiscovery_CPU_graph' => array(
 			'friendly_name' => 'CPU Graph',
-			'description' => 'Enable CPU Graph, and which template to use',
-			'method' => "drop_array",
-			'array' => $linkdiscovery_cpu_graph, 
+//			'description' => 'Enable CPU Graph, and which template to use',
+			'description' => 'Enable CPU Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => $linkdiscovery_cpu_graph, 
 			),
 		'linkdiscovery_status_graph' => array(
 			'friendly_name' => 'Status Graph',
-			'description' => 'Enable Status Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('status'), 
+//			'description' => 'Enable Status Graph, and which type to use',
+			'description' => 'Enable Status Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('status'), 
 			),
 		'linkdiscovery_traffic_graph' => array(
 			'friendly_name' => 'Traffic Graph',
-			'description' => 'Enable Traffic Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('traffic'), 
+//			'description' => 'Enable Traffic Graph, and which type to use',
+			'description' => 'Enable Traffic Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('traffic'), 
 			),
 		'linkdiscovery_packets_graph' => array(
 			'friendly_name' => 'Packets Graph',
-			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('Packets'), 
+//			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
+			'description' => 'Enable Non-unicast or other packets Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
@@ -268,6 +280,9 @@ function linkdiscovery_show_tab () {
 		}else{
 			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/linkdiscovery.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover_down.gif" alt="LinkDiscovery" align="absmiddle" border="0"></a>';
 		}
+	}
+	
+	if (api_user_realm_auth('phones.php') && read_config_option('linkdiscovery_keep_phone') ) {
 
 		if (!substr_count($_SERVER["REQUEST_URI"], "phones.php")) {
 			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/phones.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_phones.gif" alt="Phones" align="absmiddle" border="0"></a>';
@@ -282,8 +297,6 @@ function linkdiscovery_config_arrays () {
 
 	$linkdiscovery_poller_frequencies = array(
 		"disabled" => "Disabled",
-		"60" => "Every 1 Hour",
-		"120" => "Every 2 Hours",
 		"240" => "Every 4 Hours",
 		"360" => "Every 6 Hours",
 		"480" => "Every 8 Hours",
@@ -304,7 +317,7 @@ function linkdiscovery_config_arrays () {
 			$linkdiscovery_get_host_template[$ht['id']] = $ht['name'];
 		}
 	}
-
+/*
 	// get CPU graph template
 	$linkdiscovery_cpu_graph = array();
 	$linkdiscovery_host_template = (read_config_option('linkdiscovery_host_template')>0)?read_config_option('linkdiscovery_host_template'):1;
@@ -320,11 +333,22 @@ function linkdiscovery_config_arrays () {
 		$linkdiscovery_cpu_graph[$ht['id']] = $ht['name'];
 		}
 	}
-	
+*/	
 }
 
-function linkdiscovery_draw_navigation_text ($nav) {
-   $nav['linkdiscovery.php:'] = array('title' => __('LinkDiscovery'), 'mapping' => '', 'url' => 'linkdiscovery.php', 'level' => '1');
+function routerconfigs_draw_navigation_text ($nav) {
+	$nav['linkdiscovery.php:'] = array(
+		'title' => __('Linkdiscovery', 'linkdiscovery'),
+		'mapping' => 'index.php:',
+		'url' => 'linkdiscovery.php',
+		'level' => '1'
+	);
+	$nav['phones.php:'] = array(
+		'title' => __('Phones list', 'linkdiscovery'),
+		'mapping' => 'index.php:',
+		'url' => 'phones.php',
+		'level' => '1'
+	);
 
 	return $nav;
 }
@@ -349,7 +373,7 @@ function linkdiscovery_setup_table () {
 	$data['columns'][] = array('name' => 'scanned', 'type' => 'tinyint(1)', 'default' => '0');
 	$data['primary'] = 'description';
 	$data['keys'][] = array('name' => 'hostname', 'columns' => 'hostname');
-	$data['type'] = 'MyISAM';
+	$data['type'] = 'InnoDB';
 	$data['comment'] = 'Plugin linkdiscovery - Table of linkdiscovery discovered hosts';
 	api_plugin_db_table_create('linkdiscovery', 'plugin_linkdiscovery_hosts', $data);
 
@@ -361,7 +385,7 @@ function linkdiscovery_setup_table () {
 	$data['primary'] = "host_id_src`,`snmp_index_src";
 	$data['keys'][] = array('name' => 'host_id_src', 'columns' => 'host_id_src');
 	$data['keys'][] = array('name' => 'snmp_index_src', 'columns' => 'snmp_index_src');
-	$data['type'] = 'MyISAM';
+	$data['type'] = 'InnoDB';
 	$data['comment'] = 'Plugin linkdiscovery - Table of linkdiscovery discovered interface';
 	api_plugin_db_table_create('linkdiscovery', 'plugin_linkdiscovery_intf', $data);
 }
@@ -436,6 +460,17 @@ function treeList( $headers, $treeId=0, $parentId, $spaces ){
 	return $headers;
 }
 
+function linkdiscovery_get_cpu_graph( $linkdiscovery_host_template ){
+		// get CPU graph template
+	$dbquery = db_fetch_cell("SELECT graph_templates.id
+			FROM host_template,host_template_graph,graph_templates 
+			WHERE host_template.id=" . $linkdiscovery_host_template . "
+			AND host_template.id=host_template_graph.host_template_id
+			AND graph_templates.id=host_template_graph.graph_template_id AND graph_templates.name LIKE '%cpu%' LIMIT 1");
+
+	
+	return $dbquery;
+}
 function linkdiscovery_get_thold_template( $type ) {
 	global $thold;
 
@@ -459,26 +494,16 @@ function linkdiscovery_get_thold_template( $type ) {
 	return $header;
 }
 
-function linkdiscovery_get_graph_template( $type) {
-	$header = array();
-	$linkdiscovery_host_template = (read_config_option('linkdiscovery_host_template')>0)?read_config_option('linkdiscovery_host_template'):1;
+function linkdiscovery_get_graph_template( $linkdiscovery_host_template, $type) {
+	$dbquery = db_fetch_cell("SELECT snmp_query_graph.id
+		FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
+		WHERE host_template_snmp_query.host_template_id=" . $linkdiscovery_host_template . "
+		AND host_template_snmp_query.snmp_query_id=snmp_query.id
+		AND snmp_query.id=snmp_query_graph.snmp_query_id
+		AND snmp_query_graph.graph_template_id=graph_templates.id
+		AND graph_templates.name LIKE'%$type%'");
 
-			$dbquery = db_fetch_assoc("SELECT snmp_query_graph.id, snmp_query_graph.name
-			FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
-			WHERE host_template_snmp_query.host_template_id=" . $linkdiscovery_host_template . "
-			AND host_template_snmp_query.snmp_query_id=snmp_query.id
-			AND snmp_query.id=snmp_query_graph.snmp_query_id
-			AND snmp_query_graph.graph_template_id=graph_templates.id
-			AND graph_templates.name LIKE'%$type%'");
-
-	if (sizeof($dbquery) > 0) {
-		$header[0] = "Disabled";
-		foreach ($dbquery as $ht) {
-		$header[$ht['id']] = $ht['name'];
-		}
-	}
-
-	return $header;
+	return $dbquery;
 }
 
 function linkdiscovery_utilities_action ($action) {

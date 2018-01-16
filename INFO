@@ -1,6 +1,6 @@
 [info]
 name = linkdiscovery
-version = 1.1.0
+version = 1.2.0
 longname = Network Link Discovery
 author = Arno Streuli
 email = astreuli@gmail.com

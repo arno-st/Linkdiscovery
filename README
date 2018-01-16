@@ -39,4 +39,5 @@
 1.0.2 added optional graph for non unicast packet
 1.0.3 added the option to keep trace of IP phone, and keep the phone number. And keep WiFi AP monitored with ping
 1.1.0 if extenddb is present we keep serial_no and type into the extention of the DB
-
+1.1.1 added the management of the flag isPhone if extenddb is present
+1.2.0 use automation templates to define what Device template has to be applied, and in the setting -< linkdiscovery just enable or disable graph creation
