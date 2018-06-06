@@ -248,12 +248,12 @@ function linkdiscovery_config_settings () {
 			'method' => "drop_array",
 			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
-                'linkdiscovery_errors_graph' => array(
-                        'friendly_name' => 'Error Graph',
-                        'description' => 'Enable Errors and Discard packets Graph, and which type to use',
-                        'method' => "drop_array",
-                        'array' => linkdiscovery_get_graph_template('Errors'), 
-                        ),
+		'linkdiscovery_errors_graph' => array(
+			'friendly_name' => 'Error Graph',
+			'description' => 'Enable Errors and Discard packets Graph, and which type to use',
+			'method' => "drop_array",
+			'array' => linkdiscovery_get_graph_template('Errors'), 
+			),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
 			'description' => 'Enable Status Threshold, and which template to use',

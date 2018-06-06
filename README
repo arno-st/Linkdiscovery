@@ -20,17 +20,12 @@
     
 ----[ Possible Bugs?
    
-	On slow link it can crash you poller process, so I advice to disable slow link device
 	If you find a problem, let me know!!! http://bugs.cacti.net
 
 ----[ Future Changes
+
 
 	Got any ideas or complaints, please e-mail me!
 
 ----[ Changelog
 
-0.2	 Added the Switch/router equipement type into the comment
-0.3  Added a search based on destination hostname on the discover page
-0.31 create the thold without calling the autocreate of thold 
-0.32 Added the updated hostname with FQDN option, and local SNMP function to be able to retreive the IP address correctly from  CDP
-0.33 Non-Unicast packet traffic graph

@@ -699,19 +699,17 @@ linkdiscovery_debug("   Graph Packets exist: " .$seedhostid . " id: " .$packets_
 		}
 	}
 	
-    // should we do a graph for error packet
+    // should we do a graph for NonUnicast packet
     // snmp_errors_query_graph_id=2
     // errors_graph_template_id=22
     // snmp_query_id=10
     if( $snmp_errors_query_graph_id > 0) {
         $return_array = array();
-        $errors_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_errors_query_grap
-h_id);
+        $errors_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_errors_query_graph_id);
         $snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_errors_query_graph_id );
    
         // take interface to be monitored, on the new host
-        $existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$errors_graph_template_id." AND host_id
-=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
+        $existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$errors_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
 
         if( $existsAlready == 0 ) {
             $empty=array();
