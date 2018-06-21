@@ -32,6 +32,8 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'utilities_action', 'linkdiscovery_utilities_action', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'utilities_list', 'linkdiscovery_utilities_list', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'device_remove', 'linkdiscovery_device_remove', 'setup.php');
+	api_plugin_register_hook('linkdiscovery', 'api_device_new', 'linkdiscovery_add_device', 'setup.php'); // add a device to efficientIP 
+
 
 	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
 
@@ -166,39 +168,64 @@ function linkdiscovery_config_settings () {
 			"method" => "textbox",
 			"max_length" => "3"
 			),
+		"linkdiscovery_ipam_url" => array(
+			"friendly_name" => "URL of the EfficientIP server",
+			"description" => "URL of the EfficientIP server.",
+			"method" => "textbox",
+			"max_length" => 80,
+			"default" => ""
+			),
+		'linkdiscovery_useipam' => array(
+			'friendly_name' => 'Use the EfficientIP netchange ?',
+			'description' => 'Fill EfficientIP Netchange product when a host is added.',
+			'method' => 'checkbox',
+			'default' => 'off'
+			),
 		"linkdiscovery_graph_header" => array(
 			"friendly_name" => "Graph creation",
 			"method" => "spacer",
 			),
-		"linkdiscovery_host_template" => array(
+/*		"linkdiscovery_host_template" => array(
 			"friendly_name" => "host Template",
 			"description" => "Select a Host Template that device will be matched to.",
 			"method" => "drop_array",
 			"array" => $linkdiscovery_get_host_template,
-			),
+			),*/
 		'linkdiscovery_CPU_graph' => array(
 			'friendly_name' => 'CPU Graph',
-			'description' => 'Enable CPU Graph, and which template to use',
-			'method' => "drop_array",
-			'array' => $linkdiscovery_cpu_graph, 
+//			'description' => 'Enable CPU Graph, and which template to use',
+			'description' => 'Enable CPU Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => $linkdiscovery_cpu_graph, 
 			),
 		'linkdiscovery_status_graph' => array(
 			'friendly_name' => 'Status Graph',
-			'description' => 'Enable Status Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('status'), 
+//			'description' => 'Enable Status Graph, and which type to use',
+			'description' => 'Enable Status Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('status'), 
 			),
 		'linkdiscovery_traffic_graph' => array(
 			'friendly_name' => 'Traffic Graph',
-			'description' => 'Enable Traffic Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('traffic'), 
+//			'description' => 'Enable Traffic Graph, and which type to use',
+			'description' => 'Enable Traffic Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('traffic'), 
 			),
 		'linkdiscovery_packets_graph' => array(
 			'friendly_name' => 'Packets Graph',
-			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('Packets'), 
+//			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
+			'description' => 'Enable Non-unicast or other packets Graph',
+			'method' => 'checkbox',
+			'default' => 'off'
+//			'method' => "drop_array",
+//			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
 		'linkdiscovery_status_thold' => array(
 			'friendly_name' => 'Status Threshold',
@@ -305,7 +332,7 @@ function linkdiscovery_config_arrays () {
 			$linkdiscovery_get_host_template[$ht['id']] = $ht['name'];
 		}
 	}
-
+/*
 	// get CPU graph template
 	$linkdiscovery_cpu_graph = array();
 	$linkdiscovery_host_template = (read_config_option('linkdiscovery_host_template')>0)?read_config_option('linkdiscovery_host_template'):1;
@@ -321,7 +348,7 @@ function linkdiscovery_config_arrays () {
 		$linkdiscovery_cpu_graph[$ht['id']] = $ht['name'];
 		}
 	}
-	
+*/	
 }
 
 function routerconfigs_draw_navigation_text ($nav) {
@@ -448,6 +475,17 @@ function treeList( $headers, $treeId=0, $parentId, $spaces ){
 	return $headers;
 }
 
+function linkdiscovery_get_cpu_graph( $linkdiscovery_host_template ){
+		// get CPU graph template
+	$dbquery = db_fetch_cell("SELECT graph_templates.id
+			FROM host_template,host_template_graph,graph_templates 
+			WHERE host_template.id=" . $linkdiscovery_host_template . "
+			AND host_template.id=host_template_graph.host_template_id
+			AND graph_templates.id=host_template_graph.graph_template_id AND graph_templates.name LIKE '%cpu%' LIMIT 1");
+
+	
+	return $dbquery;
+}
 function linkdiscovery_get_thold_template( $type ) {
 	global $thold;
 
@@ -471,26 +509,16 @@ function linkdiscovery_get_thold_template( $type ) {
 	return $header;
 }
 
-function linkdiscovery_get_graph_template( $type) {
-	$header = array();
-	$linkdiscovery_host_template = (read_config_option('linkdiscovery_host_template')>0)?read_config_option('linkdiscovery_host_template'):1;
+function linkdiscovery_get_graph_template( $linkdiscovery_host_template, $type) {
+	$dbquery = db_fetch_cell("SELECT snmp_query_graph.id
+		FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
+		WHERE host_template_snmp_query.host_template_id=" . $linkdiscovery_host_template . "
+		AND host_template_snmp_query.snmp_query_id=snmp_query.id
+		AND snmp_query.id=snmp_query_graph.snmp_query_id
+		AND snmp_query_graph.graph_template_id=graph_templates.id
+		AND graph_templates.name LIKE'%$type%'");
 
-			$dbquery = db_fetch_assoc("SELECT snmp_query_graph.id, snmp_query_graph.name
-			FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
-			WHERE host_template_snmp_query.host_template_id=" . $linkdiscovery_host_template . "
-			AND host_template_snmp_query.snmp_query_id=snmp_query.id
-			AND snmp_query.id=snmp_query_graph.snmp_query_id
-			AND snmp_query_graph.graph_template_id=graph_templates.id
-			AND graph_templates.name LIKE'%$type%'");
-
-	if (sizeof($dbquery) > 0) {
-		$header[0] = "Disabled";
-		foreach ($dbquery as $ht) {
-		$header[$ht['id']] = $ht['name'];
-		}
-	}
-
-	return $header;
+	return $dbquery;
 }
 
 function linkdiscovery_utilities_action ($action) {
@@ -563,4 +591,49 @@ function linkdiscovery_device_remove( $hosts_id ){
 	return $hosts_id;
 }
 
+function linkdiscovery_add_device( $host_id ) {
+	$useipam = read_config_option("linkdiscovery_useipam");
+	
+	if( $useipam ){
+		$ipamurl = read_config_option("linkdiscovery_ipam_url");
+		//$host_id["hostname"] do a nslook if necessary
+		$ip = gethostbyname($host_id["hostname"]);
+		//https://ipam.lausanne.ch/rpc/iplocator_ng_import_device.php?hostaddr=$host_id&site_id=4
+		$url = $ipamurl . "/rpc/iplocator_ng_import_device.php?hostaddr=". $ip ."&site_id=4";
+		
+        $handle = curl_init();
+		curl_setopt( $handle, CURLOPT_URL, $url );
+		curl_setopt( $handle, CURLOPT_POST, true );
+		curl_setopt( $handle, CURLOPT_HEADER, true );
+		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'X-IPM-Username:c19jYWN0aW5ldHdvcmthZG0=', 'X-IPM-Password:VU5BVzJtM3NGRis5dVN6WmY=','Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
+
+		$response = curl_exec($handle);
+		$error = curl_error($handle);
+		$result = array( 'header' => '',
+                         'body' => '',
+                         'curl_error' => '',
+                         'http_code' => '',
+                         'last_url' => '');
+
+        $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+        $result['header'] = substr($response, 0, $header_size);
+        $result['body'] = substr( $response, $header_size );
+        $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+        $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+        if ( $error != "" )
+        {
+            $result['curl_error'] = $error;
+        }
+       
+        print( "result: ". var_dump($result) );
+
+		curl_close($handle);
+
+	}
+	
+	return $host_id;
+}
 ?>
