@@ -29,6 +29,7 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'config_settings', 'linkdiscovery_config_settings', 'setup.php'); // personl settings info
 	api_plugin_register_hook('linkdiscovery', 'draw_navigation_text', 'linkdiscovery_draw_navigation_text', 'setup.php'); // nav bar under console and grpah tab
 	api_plugin_register_hook('linkdiscovery', 'poller_bottom', 'linkdiscovery_poller_bottom', 'setup.php'); // define and setting of personal poller
+	api_plugin_register_hook('linkdiscovery', 'api_device_new', 'linkdiscovery_add_device', 'setup.php'); // add a device to efficientIP 
 	api_plugin_register_hook('linkdiscovery', 'utilities_action', 'linkdiscovery_utilities_action', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'utilities_list', 'linkdiscovery_utilities_list', 'setup.php');
 	api_plugin_register_hook('linkdiscovery', 'device_remove', 'linkdiscovery_device_remove', 'setup.php');
@@ -123,7 +124,7 @@ function linkdiscovery_check_dependencies() {
 function plugin_linkdiscovery_version () {
 	return array(
 		'name'     => 'LinkDiscovery',
-		'version'  => '0.40',
+		'version'  => '0.41',
 		'longname' => 'Network Link Discovery',
 		'author'   => 'Arno Streuli',
 		'homepage' => 'http://cactiusers.org',
@@ -213,6 +214,19 @@ function linkdiscovery_config_settings () {
 			"default" => "1",
 			"method" => "textbox",
 			"max_length" => "3"
+			),
+		"linkdiscovery_ipam_url" => array(
+			"friendly_name" => "URL of the EfficientIP server",
+			"description" => "URL of the EfficientIP server.",
+			"method" => "textbox",
+			"max_length" => 80,
+			"default" => ""
+			),
+		'linkdiscovery_useipam' => array(
+			'friendly_name' => 'Use the EfficientIP netchange ?',
+			'description' => 'Fill EfficientIP Netchange product when a host is added.',
+			'method' => 'checkbox',
+			'default' => 'off'
 			),
 		"linkdiscovery_graph_header" => array(
 			"friendly_name" => "Graph creation",
@@ -553,7 +567,52 @@ function linkdiscovery_device_remove( $hosts_id ){
 		}
 	}
 
-	return;
+	return $host_id;
 }
 
+function linkdiscovery_add_device( $host_id ) {
+	$useipam = read_config_option("linkdiscovery_useipam");
+	
+	if( $useipam ){
+		$ipamurl = read_config_option("linkdiscovery_ipam_url");
+		//$host_id["hostname"] do a nslook if necessary
+		$ip = gethostbyname($host_id["hostname"]);
+		//https://ipam.lausanne.ch/rpc/iplocator_ng_import_device.php?hostaddr=$host_id&site_id=4
+		$url = $ipamurl . "/rpc/iplocator_ng_import_device.php?hostaddr=". $ip ."&site_id=4";
+		
+        $handle = curl_init();
+		curl_setopt( $handle, CURLOPT_URL, $url );
+		curl_setopt( $handle, CURLOPT_POST, true );
+		curl_setopt( $handle, CURLOPT_HEADER, true );
+		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'X-IPM-Username:c19jYWN0aW5ldHdvcmthZG0=', 'X-IPM-Password:VU5BVzJtM3NGRis5dVN6WmY=','Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
+
+		$response = curl_exec($handle);
+		$error = curl_error($handle);
+		$result = array( 'header' => '',
+                         'body' => '',
+                         'curl_error' => '',
+                         'http_code' => '',
+                         'last_url' => '');
+
+        $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+        $result['header'] = substr($response, 0, $header_size);
+        $result['body'] = substr( $response, $header_size );
+        $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+        $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+        if ( $error != "" )
+        {
+            $result['curl_error'] = $error;
+        }
+       
+        print( "result: ". var_dump($result) );
+
+		curl_close($handle);
+
+	}
+	
+	return $host_id;
+}
 ?>
