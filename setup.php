@@ -78,6 +78,12 @@ function linkdiscovery_check_upgrade() {
 			webpage='" . $version['homepage'] . "' 
 			WHERE directory='" . $version['name'] . "' ");
 
+		if( $old < '1.2.2' ) {
+			// remove old data from settings
+			db_execute("DELETE FROM settings WHERE name='linkdiscovery_status_thold';");
+			db_execute("DELETE FROM settings WHERE name='linkdiscovery_traffic_thold';");
+			db_execute("DELETE FROM settings WHERE name='linkdiscovery_host_template';");
+		}
 	}
 }
 
@@ -185,12 +191,6 @@ function linkdiscovery_config_settings () {
 			"friendly_name" => "Graph creation",
 			"method" => "spacer",
 			),
-/*		"linkdiscovery_host_template" => array(
-			"friendly_name" => "host Template",
-			"description" => "Select a Host Template that device will be matched to.",
-			"method" => "drop_array",
-			"array" => $linkdiscovery_get_host_template,
-			),*/
 		'linkdiscovery_CPU_graph' => array(
 			'friendly_name' => 'CPU Graph',
 //			'description' => 'Enable CPU Graph, and which template to use',
@@ -202,42 +202,39 @@ function linkdiscovery_config_settings () {
 			),
 		'linkdiscovery_status_graph' => array(
 			'friendly_name' => 'Status Graph',
-//			'description' => 'Enable Status Graph, and which type to use',
-			'description' => 'Enable Status Graph',
-			'method' => 'checkbox',
-			'default' => 'off'
-//			'method' => "drop_array",
-//			'array' => linkdiscovery_get_graph_template('status'), 
+			'description' => 'Enable Status Graph, and which type to use',
+//			'description' => 'Enable Status Graph',
+//			'method' => 'checkbox',
+//			'default' => 'off'
+			'method' => "drop_array",
+			'array' => linkdiscovery_get_graph_template('status'), 
 			),
 		'linkdiscovery_traffic_graph' => array(
 			'friendly_name' => 'Traffic Graph',
-//			'description' => 'Enable Traffic Graph, and which type to use',
-			'description' => 'Enable Traffic Graph',
-			'method' => 'checkbox',
-			'default' => 'off'
-//			'method' => "drop_array",
-//			'array' => linkdiscovery_get_graph_template('traffic'), 
+			'description' => 'Enable Traffic Graph, and which type to use',
+//			'description' => 'Enable Traffic Graph',
+//			'method' => 'checkbox',
+//			'default' => 'off'
+			'method' => "drop_array",
+			'array' => linkdiscovery_get_graph_template('traffic'), 
 			),
 		'linkdiscovery_packets_graph' => array(
 			'friendly_name' => 'Packets Graph',
-//			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
-			'description' => 'Enable Non-unicast or other packets Graph',
-			'method' => 'checkbox',
-			'default' => 'off'
-//			'method' => "drop_array",
-//			'array' => linkdiscovery_get_graph_template('Packets'), 
-			),
-		'linkdiscovery_status_thold' => array(
-			'friendly_name' => 'Status Threshold',
-			'description' => 'Enable Status Threshold, and which template to use',
+			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
+//			'description' => 'Enable Non-unicast or other packets Graph',
+//			'method' => 'checkbox',
+//			'default' => 'off'
 			'method' => "drop_array",
-			'array' => linkdiscovery_get_thold_template('status'), 
+			'array' => linkdiscovery_get_graph_template('Packets'), 
 			),
-		'linkdiscovery_traffic_thold' => array(
-			'friendly_name' => 'Traffic Threshold',
-			'description' => 'Enable traffic Threshold, and which template to use',
+		'linkdiscovery_errors_graph' => array(
+			'friendly_name' => 'Error Graph',
+			'description' => 'Enable Error Graph, and which type to use',
+//			'description' => 'Enable Status Graph',
+//			'method' => 'checkbox',
+//			'default' => 'off'
 			'method' => "drop_array",
-			'array' => linkdiscovery_get_thold_template('traffic'), 
+			'array' => linkdiscovery_get_graph_template('Error'), 
 			),
 		"linkdiscovery_other_header" => array(
 			"friendly_name" => "other option",
@@ -332,23 +329,6 @@ function linkdiscovery_config_arrays () {
 			$linkdiscovery_get_host_template[$ht['id']] = $ht['name'];
 		}
 	}
-/*
-	// get CPU graph template
-	$linkdiscovery_cpu_graph = array();
-	$linkdiscovery_host_template = (read_config_option('linkdiscovery_host_template')>0)?read_config_option('linkdiscovery_host_template'):1;
-	$dbquery = db_fetch_assoc("SELECT graph_templates.id, graph_templates.name
-			FROM host_template,host_template_graph,graph_templates 
-			WHERE host_template.id=" . $linkdiscovery_host_template . "
-			AND host_template.id=host_template_graph.host_template_id
-			AND graph_templates.id=host_template_graph.graph_template_id AND graph_templates.name LIKE '%cpu%'");
-
-	if (sizeof($dbquery) > 0) {
-		$linkdiscovery_cpu_graph[0] = "Disabled";
-		foreach ($dbquery as $ht) {
-		$linkdiscovery_cpu_graph[$ht['id']] = $ht['name'];
-		}
-	}
-*/	
 }
 
 function routerconfigs_draw_navigation_text ($nav) {
@@ -486,18 +466,16 @@ function linkdiscovery_get_cpu_graph( $linkdiscovery_host_template ){
 	
 	return $dbquery;
 }
-function linkdiscovery_get_thold_template( $type ) {
-	global $thold;
 
-	if( $thold = false )
-		return;
-
+function linkdiscovery_get_graph_template( $type) {
 	$header = array();
-	
-	$dbquery = db_fetch_assoc("SELECT thold_template.id, thold_template.name
-			FROM thold_template 
-			WHERE thold_template.name LIKE'%$type%'");
 
+	$dbquery = db_fetch_assoc("SELECT DISTINCT snmp_query_graph.id, snmp_query_graph.name
+	FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
+	WHERE host_template_snmp_query.snmp_query_id=snmp_query.id
+	AND snmp_query.id=snmp_query_graph.snmp_query_id
+	AND snmp_query_graph.graph_template_id=graph_templates.id
+	AND graph_templates.name LIKE'%$type%'");
 
 	if (sizeof($dbquery) > 0) {
 		$header[0] = "Disabled";
@@ -507,18 +485,6 @@ function linkdiscovery_get_thold_template( $type ) {
 	}
 
 	return $header;
-}
-
-function linkdiscovery_get_graph_template( $linkdiscovery_host_template, $type) {
-	$dbquery = db_fetch_cell("SELECT snmp_query_graph.id
-		FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
-		WHERE host_template_snmp_query.host_template_id=" . $linkdiscovery_host_template . "
-		AND host_template_snmp_query.snmp_query_id=snmp_query.id
-		AND snmp_query.id=snmp_query_graph.snmp_query_id
-		AND snmp_query_graph.graph_template_id=graph_templates.id
-		AND graph_templates.name LIKE'%$type%'");
-
-	return $dbquery;
 }
 
 function linkdiscovery_utilities_action ($action) {

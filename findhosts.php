@@ -79,6 +79,7 @@ $lldpRemOsName       = ".1.0.8802.1.1.2.1.4.1.1.10.0";
 
 $snmpifdescr		 = ".1.3.6.1.2.1.2.2.1.2";
 $snmpsysname		 = ".1.3.6.1.2.1.1.5.0"; // system name
+$snmpsysdescr		 = ".1.3.6.1.2.1.1.1.0"; // system description
 $snmpserialno		= ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
 
 $isRouter = 0x01;
@@ -201,8 +202,11 @@ if ($time_till_next_run < 0) {
 }
 
 if ($time_till_next_run > 0 && $forcerun == FALSE) {
+	linkdiscovery_debug("not the right time\n");
 	exit;
 }
+
+// check if findhost is allready running
 
 if ($forcerun) {
 	linkdiscovery_debug("Scanning has been forced\n");
@@ -226,12 +230,16 @@ $update_hostname = read_config_option("linkdiscovery_update_hostname");
 $keepwifi = read_config_option("linkdiscovery_keep_wifi");
 // phone setup
 $keepphone = read_config_option("linkdiscovery_keep_phone");
-// add the nu graphs from the old host, to the new host
-$snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
+
 // add the traffic graphs from the old host, to the new host
 $snmp_traffic_query_graph_id = read_config_option("linkdiscovery_traffic_graph");
+// add the nu graphs from the old host, to the new host
+$snmp_packets_query_graph_id = read_config_option("linkdiscovery_packets_graph");
+// add the error graphs from the old host, to the new host
+$snmp_errors_query_graph_id = read_config_option("linkdiscovery_errors_graph");
 // add the status graphs, from the new host
 $snmp_status_query_graph_id = read_config_option("linkdiscovery_status_graph");
+
 // should we monitor the host
 $monitor = read_config_option("linkdiscovery_monitor");
 $thold_traffic_graph_template = read_config_option("linkdiscovery_traffic_thold");
@@ -259,7 +267,7 @@ if (!is_array($known_hosts)) {
 }
 
 $snmp_array = array(
-"host_template_id"	   => read_config_option('linkdiscovery_host_template'),
+"host_template_id"	   => '5', // Cisco router as default
 "snmp_community" 	   => "$snmp_community",
 "snmp_port"            => $known_hosts['snmp_port'],
 "snmp_timeout"         => read_config_option('snmp_timeout'),
@@ -301,9 +309,9 @@ if ($sub_tree_id <> 0)
 }
 
 // remove the truncate function ,so the table is still reflecting all ink discovered, and just updated
-//db_execute("truncate table plugin_linkdiscovery_hosts");
-db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='0'"); // clear the scanned field
-//db_execute("truncate table plugin_linkdiscovery_intf");
+db_execute("truncate table plugin_linkdiscovery_hosts");
+//db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='0'"); // clear the scanned field
+db_execute("truncate table plugin_linkdiscovery_intf");
 
 // Seed the relevant arrays with known information.
 /* besoin des information suivante:
@@ -324,6 +332,9 @@ CDP_Discovery($sidx, $known_hosts['hostname'] );
 
 DisplayStack();
 
+// End of process
+linkdiscovery_debug("\n\n\nEnd of process\n\n\n" );
+exit;
 
 function DisplayStack(){
 	global $hostdiscovered;
@@ -338,7 +349,7 @@ function DisplayStack(){
 // Try CDP.
 //**********************
 function CDP_Discovery($CDPdeep, $seedhost ) {
-	global $cdpdevicename, $isSwitch, $isRouter, $isSRBridge, $isNexus, $isHost,  $keepwifi, $isWifi, $keepphone, $isPhone, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_array, $hostdiscovered, $goodtogo, $noscanhost;
+	global $cdpdevicename, $isSwitch, $isRouter, $isSRBridge, $isNexus, $isHost,  $keepwifi, $isWifi, $keepphone, $isPhone, $snmp_array, $hostdiscovered, $goodtogo, $noscanhost;
 	
 linkdiscovery_debug("\n\n\nPool host: " . $seedhost. " deep: ". $CDPdeep ."\n");
 
@@ -544,7 +555,7 @@ linkdiscovery_debug("  snmp wifi  or phone no snmp for interface for: " . $hostr
 
 //**********************
 function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $snmp_array ){
-	global $itfnamearray, $itfidxarray, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, $snmpserialno, $extenddb;
+	global $itfnamearray, $itfidxarray, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, $snmpserialno, $snmpsysdescr, $extenddb;
 
 	// if it's a Wifi or a IP phone we save the host, and the link
 	// check if the host does not exist, and we save
@@ -565,13 +576,23 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $sn
 			$snmp_array["availability_method"]  = '3';
 			$snmp_array["ping_method"]          = '1';
 			$snmp_array["snmp_version"] 		= '0';
-			if( $goodtogo == $isPhone ){
+//			if( $goodtogo == $isPhone ){
 				$snmp_array["disable"]				= 'on';
-			}
-		} 
+//			}
+			$snmp_array["notes"] = $seedhost;
+		} else {
+			// get host template id based on OS defined on automation
+			// take info from profile based on OS returned from automation_find_os($sysDescr, $sysObject, $sysName)()
+			$snmp_sysDescr = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpsysdescr, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
+			
+			$host_template = automation_find_os($snmp_sysDescr, '', '');
+			$snmp_array["host_template_id"] = $host_template['host_template'];
+linkdiscovery_debug(" template ".$snmp_array["host_template_id"]."\n" );
+			
+		}
 
 		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $snmp_array['notes'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'], 1, 0 );
-linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_hostid."\n");
+linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_hostid. " Host template: ". $snmp_array["host_template_id"]."\n");
 
 		// do not monitor Wifi and Phone, and not emailing list
 		if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
@@ -592,7 +613,7 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_h
 		linkdiscovery_add_tree ($new_hostid);
 		// graph the CPU
 		if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
-			linkdiscovery_graph_cpu($new_hostid);
+			linkdiscovery_graph_cpu($new_hostid, $snmp_array);
 		}
 	} else {
 		$new_hostid = $dbquery[0]['id'];
@@ -710,11 +731,12 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_h
 
 	// and create the needed graphs, except for Phone
 	if( $goodtogo != $isPhone ) {
-		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'] );
+		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'], $snmp_array );
 	}
 }
 
 //**********************
+// save host on the linkdiscovery table
 function linkdiscovery_save_host( $hostid, $hostrecord_array, $scanned='0' ){
 	global $snmp_array;
 	
@@ -744,14 +766,15 @@ function linkdiscovery_save_host( $hostid, $hostrecord_array, $scanned='0' ){
 }
 
 //**********************
-function linkdiscovery_graph_cpu( $new_hostid ){
+function linkdiscovery_graph_cpu( $new_hostid, $snmp_array ){
 	// graph the CPU if requested, on the new host, and don't do it twice
+	//
 	$cpu_graph_template = read_config_option("linkdiscovery_CPU_graph");
-	$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$cpu_graph_template." AND host_id=".$new_hostid);
+	if( $cpu_graph_template == 'on' ) {
+		$cpu_graph_template_id = linkdiscovery_get_cpu_graph( $snmp_array['host_template_id'] );
+		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$cpu_graph_template_id." AND host_id=".$new_hostid);
 
-	if( ($cpu_graph_template > 0) && ($existsAlready == 0) ) {
-		$values["cg"]=array();
-		automation_execute_graph_template( $new_hostid, $cpu_graph_template);
+		automation_execute_graph_template( $new_hostid, $cpu_graph_template_id);
 //linkdiscovery_debug("   Created CPU graph: " . get_graph_title($return_array["local_graph_id"])." hostid: ".$new_hostid ."\n");
 	} else {
 //linkdiscovery_debug("   Graph CPU exist: " .$new_hostid . " id: " .$cpu_graph_template." exist: ".$existsAlready."\n" );
@@ -760,8 +783,8 @@ function linkdiscovery_graph_cpu( $new_hostid ){
 }
 
 //**********************
-function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
-	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id;
+function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf, $snmp_array ) {
+	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $snmp_packets_query_graph_id, $snmp_errors_query_graph_id;
 /* create_complete_graph_from_template - creates a graph and all necessary data sources based on a
         graph template
    @arg $graph_template_id - the id of the graph template that will be used to create the new
@@ -790,33 +813,12 @@ function create_complete_graph_from_template($graph_template_id, $host_id, $snmp
 */
 
 	// should we do a graph for traffic
-	if( $snmp_traffic_query_graph_id > 0) {
-		$return_array = array();
-		$traffic_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_traffic_query_graph_id);
-		$snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_traffic_query_graph_id );
-	
-		// take interface to be monitored, on the new host
-		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$traffic_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
-
-		if( $existsAlready == 0 ) {
-			$empty=array();
-			$snmp_query_array["snmp_query_id"] = $snmp_query_id;
-			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
-			$snmp_query_array["snmp_query_graph_id"] = $snmp_traffic_query_graph_id;
-			$snmp_query_array["snmp_index"] = $src_intf;
-			$return_array = create_complete_graph_from_template( $traffic_graph_template_id, $seedhostid, $snmp_query_array, $empty);
-
-//			automation_execute_graph_template( $seedhostid, $traffic_graph_template_id);
-			// Create the Threshold
-			if( $thold_traffic_graph_template > 0 )
-				thold_graphs_create($thold_traffic_graph_template, $return_array['local_graph_id']);
-
+	if( $snmp_traffic_query_graph_id > 0 ) {
+		$return_array = buildGraph( $snmp_traffic_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
+		if( $return_array ) {
 linkdiscovery_debug("   Created traffic graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
-linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$traffic_graph_template_id." exist: ".$existsAlready."\n" );
-			// Create the Threshold
-			if( $thold_traffic_graph_template > 0 )
-				thold_graphs_create($thold_traffic_graph_template, $existsAlready);
+linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$snmp_traffic_query_graph_id."\n" );
 		}
 	}
 
@@ -824,61 +826,64 @@ linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$traffic_
 	// snmp_packets_query_graph_id=39
 	// packets_graph_template_id=46
 	// snmp_query_id=10
-	if( $snmp_packets_query_graph_id > 0) {
-		$return_array = array();
-		$packets_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id);
-		$snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_packets_query_graph_id );
-	
-		// take interface to be monitored, on the new host
-		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$packets_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
-
-		if( $existsAlready == 0 ) {
-			$empty=array();
-			$snmp_query_array["snmp_query_id"] = $snmp_query_id;
-			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
-			$snmp_query_array["snmp_query_graph_id"] = $snmp_packets_query_graph_id;
-			$snmp_query_array["snmp_index"] = $src_intf;
-			$return_array = create_complete_graph_from_template( $packets_graph_template_id, $seedhostid, $snmp_query_array, $empty);
-
+	if( $snmp_packets_query_graph_id > 0 ) {
+		$return_array = buildGraph( $snmp_packets_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
+		if( $return_array ) {
 linkdiscovery_debug("   Created packets graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
-linkdiscovery_debug("   Graph packets exist: " .$seedhostid . " id: " .$packets_graph_template_id." exist: ".$existsAlready."\n" );
+linkdiscovery_debug("   Graph packets exist: " .$seedhostid . " id: " .$snmp_packets_query_graph_id."\n" );
 		}
 	}
 
 	// should we do a graph for the status
-	if( $snmp_status_query_graph_id > 0) {
-		$return_array = array();
-		$status_graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_status_query_graph_id);
-		$snmp_query_id = db_fetch_cell("SELECT snmp_query_id FROM snmp_query_graph WHERE id=".$snmp_status_query_graph_id );
-		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$status_graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
+	if( $snmp_status_query_graph_id > 0 ) {
+		$return_array = buildGraph( $snmp_status_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
+		if( $return_array ) {
+linkdiscovery_debug("   Created status graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
+		} else {
+linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$snmp_status_query_graph_id."\n" );
+		}
+
+	}
+
+		// should we do a graph for errors
+    if( $snmp_errors_query_graph_id > 0) {
+		$return_array = buildGraph( $snmp_errors_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
+		if( $return_array ) {
+
+linkdiscovery_debug("   Created Errors graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
+        } else {
+linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$snmp_errors_query_graph_id."\n" );
+        }
+    }
+
+	/* lastly push host-specific information to our data sources */
+	push_out_host($seedhostid,0);
+}
+
+function buildGraph( $snmp_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array ) {
+//	$snmp_array['host_template_id']
+	
+	$return_array = array();
+	$graph_template_id = db_fetch_cell("SELECT graph_template_id FROM snmp_query_graph WHERE id=".$snmp_query_graph_id);
+	$snmp_query_id = db_fetch_cell("SELECT snmp_query_graph.snmp_query_id FROM snmp_query_graph, host_template_snmp_query WHERE id=".$snmp_query_graph_id ." AND host_template_snmp_query.host_template_id=".$snmp_array['host_template_id']);
+	
+	if( $snmp_query_id > 0) {
+		// take interface to be monitored, on the new host
+		$existsAlready = db_fetch_cell("SELECT id FROM graph_local WHERE graph_template_id=".$graph_template_id." AND host_id=".$seedhostid ." AND snmp_query_id=".$snmp_query_id ." AND snmp_index=".$src_intf);
 
 		if( $existsAlready == 0 ) {
 			$empty=array();
 			$snmp_query_array["snmp_query_id"] = $snmp_query_id;
 			$snmp_query_array["snmp_index_on"] = get_best_data_query_index_type($seedhostid, $snmp_query_id);
-			$snmp_query_array["snmp_query_graph_id"] = $snmp_status_query_graph_id;
+			$snmp_query_array["snmp_query_graph_id"] = $snmp_query_graph_id;
 			$snmp_query_array["snmp_index"] = $src_intf;
-			$return_array = create_complete_graph_from_template( $status_graph_template_id, $seedhostid, $snmp_query_array, $empty);
-
-//			automation_execute_graph_template( $seedhostid, $status_graph_template_id);
-
-			// Create the Threshold 
-			if( $thold_status_graph_template > 0 )
-				thold_graphs_create($thold_status_graph_template, $return_array['local_graph_id']);
-
-linkdiscovery_debug("   Created status graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
-		} else {
-linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$status_graph_template_id." exist: ".$existsAlready."\n" );
-			// Create the Threshold
-			if( $thold_status_graph_template > 0 )
-				thold_graphs_create($thold_status_graph_template, $existsAlready);
-		}
-
-	}
-
-	/* lastly push host-specific information to our data sources */
-	push_out_host($seedhostid,0);
+			$return_array = create_complete_graph_from_template( $graph_template_id, $seedhostid, $snmp_query_array, $empty);
+			$status = $return_array;
+		} else $status = false;
+	} else $status = false;
+	
+	return $status;
 }
 
 function linkdiscovery_add_tree ($host_id) {
