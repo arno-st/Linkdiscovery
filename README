@@ -42,4 +42,5 @@
 1.1.1 added the management of the flag isPhone if extenddb is present
 1.2.0 use automation templates to define what Device template has to be applied, and in the setting -< linkdiscovery just enable or disable graph creation
 1.2.1 integration to EfficientIP netchange device management
-1.2.2 make some cleaning about old configuration, and correct some grpah creation problem
+1.2.2 make some cleaning about old configuration, and correct some graph creation problem
+1.2.3 Don't graph subinterface, only type ethernetcsmacd (type 6) and tunnel(131)

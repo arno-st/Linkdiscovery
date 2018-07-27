@@ -78,10 +78,13 @@ $lldpRemSysName      = ".1.0.8802.1.1.2.1.4.1.1.9.0";
 $lldpRemOsName       = ".1.0.8802.1.1.2.1.4.1.1.10.0";
 
 $snmpifdescr		 = ".1.3.6.1.2.1.2.2.1.2";
+$snmpiftype		 	 = ".1.3.6.1.2.1.2.2.1.3"; // interface type
 $snmpsysname		 = ".1.3.6.1.2.1.1.5.0"; // system name
 $snmpsysdescr		 = ".1.3.6.1.2.1.1.1.0"; // system description
-$snmpserialno		= ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
+$snmpserialno		 = ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
 
+$intftypeeth = 6; // ethernetCsmacd(6)
+$intftypetunnel = 131; // tunnel(131)
 $isRouter = 0x01;
 $isSRBridge = 0x04;
 $isSwitch = 0x08;
@@ -501,7 +504,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 // get the interface name/index on the seedhost, and index on the find host 
 //**********************
 function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
-	global $itfnamearray, $itfidxarray, $cdpinterfacename, $cdpremoteitfname, $snmpifdescr, $snmp_array, $goodtogo, $isWifi, $isPhone;
+	global $itfnamearray, $itfidxarray, $cdpinterfacename, $cdpremoteitfname, $snmpifdescr, $snmpiftype, $intftypeeth, $intftypetunnel, $snmp_array, $goodtogo, $isWifi, $isPhone;
 
 	$ret = false;
 
@@ -523,9 +526,12 @@ function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
 
 	$itfnamearray['dest'] = cacti_snmp_get( $seedhost, $snmp_array['snmp_community'], $cdpremoteitfname.".".$cdpsnmpitfidx.".".$cdpsnmpsubitfidx, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
-	if( $goodtogo != $isWifi && $goodtogo != $isPhone ) 
+	// interface source type
+	$itftype = cacti_snmp_get( $seedhost, $snmp_array['snmp_community'], $snmpiftype.".".$cdpsnmpitfidx, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
+
+	if( $goodtogo != $isWifi && $goodtogo != $isPhone && ($itftype == $intftypeeth || $itftype ==$intftypetunnel ) ) 
 	{
-linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ."\n");
+linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ." type: ".$itftype."\n");
 		// Get intf index on the destination host, based on the name find on the seedhost
 		$itfdstarray = cacti_snmp_walk( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpifdescr, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] ); 
 
@@ -546,7 +552,7 @@ linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ."\
 			$ret = false;
 		}
 	} else {
-linkdiscovery_debug("  snmp wifi  or phone no snmp for interface for: " . $hostrecord_array['hostname'] ."\n");
+linkdiscovery_debug("  snmp wifi, phone or subinterface no snmp for interface for: " . $hostrecord_array['hostname']. " id: ".$itfnamearray['source'] ." type: ".$itftype ."\n");
 		$ret = false;
 	}
 	
@@ -729,8 +735,8 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_h
 		. $itfidxarray['dest'] . " )");
 //	}
 
-	// and create the needed graphs, except for Phone
-	if( $goodtogo != $isPhone ) {
+	// and create the needed graphs, except for Phone, or if disable
+	if( $goodtogo != $isPhone && $canpeeritf ) {
 		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'], $snmp_array );
 	}
 }
