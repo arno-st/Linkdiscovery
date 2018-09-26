@@ -174,6 +174,12 @@ function linkdiscovery_config_settings () {
 			"method" => "textbox",
 			"max_length" => "3"
 			),
+		'linkdiscovery_useipam' => array(
+			'friendly_name' => 'Use the EfficientIP netchange ?',
+			'description' => 'Fill EfficientIP Netchange product when a host is added.',
+			'method' => 'checkbox',
+			'default' => 'off'
+			),
 		"linkdiscovery_ipam_url" => array(
 			"friendly_name" => "URL of the EfficientIP server",
 			"description" => "URL of the EfficientIP server.",
@@ -181,12 +187,27 @@ function linkdiscovery_config_settings () {
 			"max_length" => 80,
 			"default" => ""
 			),
-		'linkdiscovery_useipam' => array(
-			'friendly_name' => 'Use the EfficientIP netchange ?',
-			'description' => 'Fill EfficientIP Netchange product when a host is added.',
-			'method' => 'checkbox',
-			'default' => 'off'
-			),
+		'linkdiscovery_aruba_server' => array(
+			'friendly_name' => "Aruba ClearPass URL server",
+			'description' => 'URL of the Aruba server where will be addedd all newly discovered device',
+			"method" => "textbox",
+			"max_length" => 80,
+			"default" => ""
+		),
+		'linkdiscovery_aruba_radius_secret' => array(
+			'friendly_name' => "Aruba ClearPass radius secret",
+			'description' => 'The radius secret for a new device',
+			"method" => "textbox_password",
+			"max_length" => 80,
+			"default" => ""
+		),
+		'linkdiscovery_aruba_tacacs_secret' => array(
+			'friendly_name' => "Aruba ClearPass tacacs secret",
+			'description' => 'The tacas secret for a new device',
+			"method" => "textbox_password",
+			"max_length" => 80,
+			"default" => ""
+		),
 		"linkdiscovery_graph_header" => array(
 			"friendly_name" => "Graph creation",
 			"method" => "spacer",
@@ -546,11 +567,18 @@ function linkdiscovery_utilities_list () {
 function linkdiscovery_device_remove( $hosts_id ){
 	//array(1) { [0]=> string(4) "1921" } device remove : 
 	if( sizeof($hosts_id) ) {
+
+	$usearuba = read_config_option("linkdiscovery_aruba_server");
+
 		foreach( $hosts_id as $host_id) {
 			// remove host from plugin_linkdiscovery_hosts and plugin_linkdiscovery_intf
 			db_execute("DELETE FROM plugin_linkdiscovery_hosts where id=".$host_id );
 			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_dst=".$host_id );
 			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_src=".$host_id );
+			if($usearuba > 0){
+				// call aruba REST API
+//				remove_aruba_device($host_id );
+			}
 		}
 	}
 
@@ -589,17 +617,205 @@ function linkdiscovery_add_device( $host_id ) {
         $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
         $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
-        if ( $error != "" )
+        if ( $result['http_code'] > "299" )
         {
             $result['curl_error'] = $error;
+			link_log( "ipam error: ". $result['curl_error'] );
         }
        
-        print( "result: ". var_dump($result) );
+        link_log( "ipam result: ". $result['body'] );
 
 		curl_close($handle);
 
 	}
 	
+	$usearuba = read_config_option("linkdiscovery_aruba_server");
+	if($usearuba){
+		// call aruba REST API
+		add_aruba_device($host_id );
+	}
+
 	return $host_id;
 }
+
+function aruba_get_oauth() {
+	$arubaurl = read_config_option("linkdiscovery_aruba_server");
+
+	$url = $arubaurl . '/oauth';
+//**** get the auth token
+	$handle = curl_init();
+	curl_setopt( $handle, CURLOPT_URL, $url );
+	curl_setopt( $handle, CURLOPT_POST, true );
+	curl_setopt( $handle, CURLOPT_HEADER, true );
+	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
+    curl_setopt( $handle, CURLOPT_POSTFIELDS, 
+        '{
+        "grant_type": "client_credentials",
+        "client_id": "LinkDiscovery",
+        "client_secret": "r4rL0DvX+/RQBeSoHvH5umxPJ40QTuoWRxh5g9o8lLIU"
+        }'
+    );
+
+
+	$response = curl_exec($handle);
+	$error = curl_error($handle);
+	$result = array( 'header' => '',
+                     'body' => '',
+					 'curl_error' => '',
+					 'http_code' => '',
+					 'last_url' => ''
+					 );
+
+    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+	$result['header'] = substr($response, 0, $header_size);
+	$result['body'] = substr( $response, $header_size );
+	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+	if ( $result['http_code'] > "299" )
+    {
+		$result['curl_error'] = $error;
+		link_log("oauth error: ". $result['body'] ."\n" );
+        curl_close($handle);
+		$token = false;
+    } else {
+       
+		$response = json_decode( $result['body'], true );
+		$token = $response['access_token'];
+	}
+
+	return $token;
+}
+
+function add_aruba_device( $host_id ) {
+	$arubaurl = read_config_option("linkdiscovery_aruba_server");
+	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
+	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
+	
+	$token = aruba_get_oauth();
+	if( ! $token ) {
+		return;
+	}
+		
+//**** add the device
+	$ip = gethostbyname($host_id['hostname']);
+	$url = $arubaurl . '/network-device';
+	$handle = curl_init();
+	curl_setopt( $handle, CURLOPT_URL, $url );
+	curl_setopt( $handle, CURLOPT_POST, true );
+	curl_setopt( $handle, CURLOPT_HEADER, true );
+	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
+													 'cache-control:no-cache',
+													 "Authorization: Bearer $token") );
+
+    $desc = $host_id['description'];
+    $name = $host_id['hostname'];
+    if( $host_id['snmp_version'] == '2' ) {
+    	$snmp_version = "V2C";
+    } else if( $host_id['snmp_version'] == '3' ) {
+    	$snmp_version = "V3";
+	} else $snmp_version = "V1";
+
+    $snmp_community = $host_id['snmp_community'];
+    curl_setopt( $handle, CURLOPT_POSTFIELDS,
+        "{
+			\"description\": \"$desc\",
+			\"name\": \"$name\",
+			\"ip_address\" : \"$ip\",
+			\"radius_secret\": \"$arubaradius\",
+			\"tacacs_secret\": \"$arubatacacs\",
+			\"vendor_name\": \"Cisco\",
+			\"coa_capable\": true,
+			\"coa_port\":3799,
+			\"snmp_read\": {
+				\"force_read\": true,
+				\"read_arp_info\": true,
+				\"snmp_version\" : \"$snmp_version\",
+				\"community_string\": \"$snmp_community\"
+				}
+        }"
+    );
+	
+	$response = curl_exec($handle);
+	$error = curl_error($handle);
+	$result = array( 'header' => '',
+                     'body' => '',
+					 'curl_error' => '',
+					 'http_code' => '',
+					 'last_url' => '');
+
+    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+	$result['header'] = substr($response, 0, $header_size);
+	$result['body'] = substr( $response, $header_size );
+	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+	if ( $result['http_code'] > "299" )
+        {
+			link_log("aruba add error: ". $result['body'] ."\n" );
+        }
+       
+	curl_close($handle);
+
+}
+
+function remove_aruba_device( $host_id ) {
+	$arubaurl = read_config_option("linkdiscovery_aruba_server");
+	
+link_log("aruba remove:".var_dump($host_id) );
+
+	$token = aruba_get_oauth();
+	if( ! $token ) {
+		return;
+	}
+		
+//**** remove the device
+	$hostname = $host_id['hostname'];
+	$url = $arubaurl . '/network-device/name/'.$hostname;
+	$handle = curl_init();
+	curl_setopt( $handle, CURLOPT_URL, $url );
+	curl_setopt( $handle, CURLOPT_HEADER, true );
+	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
+													 'cache-control:no-cache',
+													 "Authorization: Bearer $token") );
+
+    curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, "DELETE" );
+	$response = curl_exec($handle);
+	$error = curl_error($handle);
+	
+	$result = array( 'header' => '',
+                     'body' => '',
+					 'curl_error' => '',
+					 'http_code' => '',
+					 'last_url' => '');
+
+    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+	$result['header'] = substr($response, 0, $header_size);
+	$result['body'] = substr( $response, $header_size );
+	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+	if ( $result['http_code'] > "299" )
+        {
+			link_log("aruba remove error: ". $result['body'] ."\n" );
+        }
+       
+	link_log( "aruba remove result: ". $result['body']  );
+
+	curl_close($handle);
+
+}
+
+function link_log( $text ){
+    $dolog = read_config_option('linkdiscovery_log_debug');
+    if( $dolog ) cacti_log( $text, false, "LINKDISCOVERY" );
+
+}
+
 ?>
