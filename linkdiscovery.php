@@ -27,7 +27,6 @@ chdir('../../');
 include("./include/auth.php");
 include_once($config['base_path'] . '/plugins/linkdiscovery/setup.php');
 
-linkdiscovery_setup_table();
 linkdiscovery_check_upgrade();
 
 /* ================= input validation ================= */
@@ -257,23 +256,26 @@ html_header_sort($display_text, get_request_var("sort_column"), get_request_var(
 
 $i=0;
 if (sizeof($result)) {
-	foreach($result as $row) {
-		form_alternate_row_color($colors["alternate"], $colors["light"], $i); $i++;
-		if ($row["hostname_src"] == "") {
-			$row["hostname_src"] = "Not Detected";
-		}
+        $class   = 'odd';
+        foreach($result as $row) {
+                ($class == 'odd' )?$class='even':$class='odd';
 
-		print"<td style='padding: 4px; margin: 4px;'>" 
-			. $row['id'] . "</td>
-			<td>" . $row['hostname_src'] . '</td>
-			<td>' . $row['desc_src'] . '</td>
-			<td>' . $row['intf_src'] . '</td>
-			<td>' . $row['hostname_dst'] . '</td>
-			<td>' . $row['desc_dst'] . '</td>
-			<td>' . $row['intf_dst'] . '</td>
-			<td align="right">';
+                if ($row["hostname_src"] == "") {
+                        $row["hostname_src"] = "Not Detected";
+                }
 
-		print "</td>";
+                print"<tr class='$class tablerow'>";
+                print"<td style='padding: 4px; margin: 4px;'>"
+                        . $row['id'] . "</td>
+                        <td>" . $row['hostname_src'] . '</td>
+                        <td>' . $row['desc_src'] . '</td>
+                        <td>' . $row['intf_src'] . '</td>
+                        <td>' . $row['hostname_dst'] . '</td>
+                        <td>' . $row['desc_dst'] . '</td>
+                        <td>' . $row['intf_dst'] . '</td>
+                        <td align="right">';
+
+                print "</tr>";
 	}
 }else{
 	print "<tr><td style='padding: 4px; margin: 4px;' colspan=11><center>There are no Hosts to display!</center></td></tr>";

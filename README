@@ -40,8 +40,9 @@
 1.0.3 added the option to keep trace of IP phone, and keep the phone number. And keep WiFi AP monitored with ping
 1.1.0 if extenddb is present we keep serial_no and type into the extention of the DB
 1.1.1 added the management of the flag isPhone if extenddb is present
-1.2.0 use automation templates to define what Device template has to be applied, and in the setting -< linkdiscovery just enable or disable graph creation
+1.2.0 use automation templates to define what Device template has to be applied, and in the setting -> linkdiscovery just enable or disable graph creation
 1.2.1 integration to EfficientIP netchange device management
 1.2.2 make some cleaning about old configuration, and correct some graph creation problem
 1.2.3 Don't graph subinterface, only type ethernetcsmacd (type 6) and tunnel(131)
 1.2.4 Add the option to add to Aruba Clearpass NAC, as every discovered device will be added to the server provided
+1.2.5 In Settings Linkdiscovery Seed device is displayed with description instead of hostname

@@ -27,7 +27,6 @@ chdir('../../');
 include("./include/auth.php");
 include_once($config['base_path'] . '/plugins/linkdiscovery/setup.php');
 
-linkdiscovery_setup_table();
 linkdiscovery_check_upgrade();
 
 /* ================= input validation ================= */
@@ -143,7 +142,7 @@ $total_rows = db_fetch_cell("SELECT count(host.hostname)
 		AND switch.id = discointf.host_id_src 
 		AND intf_src.host_id=switch.id 
 		AND intf_src.field_name='ifDescr' 
-		AND intf_src.snmp_index=discointf.snmp_index_src 
+		AND intf_src.snmp_index IN (discointf.snmp_index_src, discointf.snmp_index_src=0)
 		AND intf_src.snmp_query_id=1
 	$sql_where");
 
@@ -183,7 +182,7 @@ $sql_query = "SELECT host.hostname as phone, host.notes as phone_number, host.ty
 		AND switch.id = discointf.host_id_src 
 		AND intf_src.host_id=switch.id 
 		AND intf_src.field_name='ifDescr' 
-		AND intf_src.snmp_index=discointf.snmp_index_src 
+		AND intf_src.snmp_index IN (discointf.snmp_index_src, discointf.snmp_index_src=0)
 		AND intf_src.snmp_query_id=1
  		$sql_where 
 		ORDER BY " . $sortby . " " . get_request_var("sort_direction") . "
@@ -303,12 +302,15 @@ html_header_sort($display_text, get_request_var("sort_column"), get_request_var(
 
 $i=0;
 if (sizeof($result)) {
+    $class   = 'odd';
+
 	foreach($result as $row) {
-		form_alternate_row_color($colors["alternate"], $colors["light"], $i); $i++;
+		($class == 'odd' )?$class='even':$class='odd';
 		if ($row["phone"] == "") {
 			$row["phone"] = "Not Detected";
 		}
 
+		print"<tr class='$class tablerow'>";
 		print"<td style='padding: 4px; margin: 4px;'>" 
 			. $row['phone'] . '</td>
 			<td>' . $row['phone_number'] . '</td>
@@ -317,7 +319,7 @@ if (sizeof($result)) {
 			<td>' . $row['switch_port'] . '</td>
 			<td align="right">';
 
-		print "</td>";
+		print "</tr>";
 	}
 }else{
 	print "<tr><td style='padding: 4px; margin: 4px;' colspan=11><center>There are no Hosts to display!</center></td></tr>";

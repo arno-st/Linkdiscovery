@@ -552,16 +552,16 @@ function linkdiscovery_utilities_list () {
 	global $colors;
 
 	html_header(array("LinkDiscovery Results"), 2);
+	form_alternate_row();
 	?>
-	<tr bgcolor="#<?php print $colors["form_alternate1"];?>">
 		<td class="textArea">
 			<a href='utilities.php?action=linkdiscovery_clear'>Clear LinkDiscovery Results</a>
 		</td>
 		<td class="textArea">
 			This will clear the results from the Link Discovery data.
 		</td>
-	</tr>
 	<?php
+	form_end_row();
 }
 
 function linkdiscovery_device_remove( $hosts_id ){

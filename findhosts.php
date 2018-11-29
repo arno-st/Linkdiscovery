@@ -438,6 +438,7 @@ linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hos
 
 				// save peerhost and interface
 				linkdiscovery_save_data( $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer,	$snmp_array );
+linkdiscovery_debug("End saved\n" );
 	
 				if (($CDPdeep-1 > 0) ){
 					if( strcasecmp($hostdiscovered[count($hostdiscovered)-2],$hostrecord_array['hostname']) != 0  ) 
@@ -607,7 +608,8 @@ linkdiscovery_debug("Host ".$hostrecord_array['description']." saved id ".$new_h
 		}
 
 		if($new_hostid == 0) {
-			linkdiscovery_debug("   api Save error: ".$new_hostid." host: ".$hostrecord_array['description'] . $hostrecord_array['hostname']."\n");
+			linkdiscovery_debug("   api Save error: ".$new_hostid." host: ".$hostrecord_array['description']." ". $hostrecord_array['hostname']."\n");
+display_output_messages();
 			return;
 		} 
 		
@@ -894,19 +896,18 @@ function buildGraph( $snmp_query_graph_id, $new_hostid, $seedhostid, $src_intf, 
 
 function linkdiscovery_add_tree ($host_id) {
 /** api_tree_item_save - saves the tree object and then resorts the tree
-0 * @arg $id - the leaf_id for the object
-$tree_id * @arg $tree_id - the tree id for the object
-3     * @arg $type - the item type graph, host, leaf
-$parent * @arg $parent_tree_item_id - The parent leaf for the object
-''    * @arg $title - The leaf title in the case of a leaf
-0     * @arg $local_graph_id - The graph id in the case of a graph
-$host_id     * @arg $host_id - The host id in the case of a graph
-1     * @arg $host_grouping_type - The sort order for the host under expanded hosts
-1     * @arg $sort_children - The sort type in the case of a leaf
-false * @arg $propagate_changes - Wether the changes should be cascaded through all 
-children
- * @returns - boolean true or false depending on the outcome of the operation *
-*/
+ * @arg $id - the leaf_id for the object
+ * @arg $tree_id - the tree id for the object
+ * @arg $type - the item type graph, host, leaf
+ * @arg $parent_tree_item_id - The parent leaf for the object
+ * @arg $title - The leaf title in the caseo a leaf
+ * @arg $local_graph_id - The graph id in the case of a graph
+ * @arg $host_id - The host id in the case of a graph
+ * @arg $site_id - The site id in the case of a graph
+ * @arg $host_grouping_type - The sort order for the host under expanded hosts
+ * @arg $sort_children_type - The sort type in the case of a leaf
+ * @arg $propagate_changes - Wether the changes should be cascaded through all children
+ * @returns - boolean true or false depending on the outcome of the operation */
 
 	$tree_id = read_config_option("linkdiscovery_tree"); // sous graph_tree_itesm c'est la valeur graph_tree_id
 	$tmp_sub_tree_id = read_config_option("linkdiscovery_sub_tree");
@@ -915,10 +916,10 @@ children
 	// if the sub_tree_id is on graph_tree_items, that mean we have a parent 
 	$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id.' AND host_id=0 AND local_graph_id=0 AND id=' .$sub_tree_id );
 	if( !empty($parent) ) {
-		api_tree_item_save(0, $tree_id, 3, $sub_tree_id, '', 0, $host_id, 1, 1, false);
+		api_tree_item_save(0, $tree_id, 3, $sub_tree_id, '', 0, $host_id, 0, 1, 1, false);
 	} else {
 		// just save under the graph_tree_item, but with sub_tree_id as 0
-		api_tree_item_save(0, $tree_id, 3, 0, '', 0, $host_id, 1, 1, false);
+		api_tree_item_save(0, $tree_id, 3, 0, '', 0, $host_id, 0, 1, 1, false);
 	}
 }
 
@@ -1045,103 +1046,6 @@ function display_help () {
 	print "-r	    - Drop and Recreate the Link Discovery Plugin's tables before running\n";
 	print "-v --version  - Display this help message\n";
 	print "-h --help     - display this help message\n";
-}
-
-function thold_graphs_create($template_id, $graph) {
-	global $config;
-
-	$message = "";
-
-	$template = db_fetch_row("SELECT * FROM thold_template WHERE id=" . $template_id);
-
-	$temp = db_fetch_row("SELECT dtr.*
-			FROM data_template_rrd AS dtr
-			 LEFT JOIN graph_templates_item AS gti
-			 ON gti.task_item_id=dtr.id
-			 LEFT JOIN graph_local AS gl
-			 ON gl.id=gti.local_graph_id
-			 WHERE gl.id=$graph");
-	$data_template_id = $temp['data_template_id'];
-	$local_data_id = $temp['local_data_id'];
-
-	$data_source      = db_fetch_row("SELECT * FROM data_local WHERE id=" . $local_data_id);
-	$data_template_id = $data_source['data_template_id'];
-	$existing         = db_fetch_assoc('SELECT id FROM thold_data WHERE local_data_id=' . $local_data_id . ' AND data_template_rrd_id=' . $data_template_id);
-
-	if (count($existing) == 0 && count($template)) {
-		if ($graph) {
-			$rrdlookup = db_fetch_cell("SELECT id FROM data_template_rrd
-				WHERE local_data_id=$local_data_id
-				ORDER BY id
-				LIMIT 1");
-
-			$grapharr = db_fetch_row("SELECT graph_template_id
-				FROM graph_templates_item
-				WHERE task_item_id=$rrdlookup
-				AND local_graph_id=$graph");
-
-			$data_source_name = $template['data_source_name'];
-
-			$insert = array();
-
-			$name = thold_format_name($template, $graph, $local_data_id, $data_source_name);
-
-			$insert['name']               = $name;
-			$insert['host_id']            = $data_source['host_id'];
-			$insert['local_data_id']             = $local_data_id;
-			$insert['local_graph_id']           = $graph;
-			$insert['data_template_id']      = $data_template_id;
-			$insert['graph_template_id']     = $grapharr['graph_template_id'];
-			$insert['thold_hi']           = $template['thold_hi'];
-			$insert['thold_low']          = $template['thold_low'];
-			$insert['thold_fail_trigger'] = $template['thold_fail_trigger'];
-			$insert['thold_enabled']      = $template['thold_enabled'];
-			$insert['bl_ref_time_range']  = $template['bl_ref_time_range'];
-			$insert['bl_pct_down']        = $template['bl_pct_down'];
-			$insert['bl_pct_up']          = $template['bl_pct_up'];
-			$insert['bl_fail_trigger']    = $template['bl_fail_trigger'];
-			$insert['bl_alert']           = $template['bl_alert'];
-			$insert['repeat_alert']       = $template['repeat_alert'];
-			$insert['notify_extra']       = $template['notify_extra'];
-			$insert['cdef']               = $template['cdef'];
-			$insert['thold_template_id']           = $template['id'];
-			$insert['template_enabled']   = 'on';
-
-			$rrdlist = db_fetch_assoc("SELECT id, data_input_field_id FROM data_template_rrd where local_data_id='$local_data_id' and data_source_name='$data_source_name'");
-
-			$int = array('id', 'data_template_id', 'data_source_id', 'thold_fail_trigger', 'bl_ref_time_range', 'bl_pct_down', 'bl_pct_up', 'bl_fail_trigger', 'bl_alert', 'repeat_alert', 'cdef');
-			foreach ($rrdlist as $rrdrow) {
-				$data_rrd_id=$rrdrow['id'];
-				$insert['data_template_rrd_id'] = $data_rrd_id;
-				$existing = db_fetch_assoc("SELECT id FROM thold_data WHERE local_data_id='$local_data_id' AND data_template_rrd_id='$data_rrd_id'");
-				if (count($existing) == 0) {
-					$insert['id'] = 0;
-					$id = sql_save($insert, 'thold_data');
-					if ($id) {
-						thold_template_update_threshold ($id, $insert['thold_template_id']);
-
-						$l = db_fetch_assoc("SELECT name FROM data_template where id=$data_template_id");
-						$tname = $l[0]['name'];
-
-						$name = $data_source_name;
-						if ($rrdrow['data_input_field_id'] != 0) {
-							$l = db_fetch_assoc('SELECT name FROM data_input_fields where id=' . $rrdrow['data_input_field_id']);
-							$name = $l[0]['name'];
-						}
-						plugin_thold_log_changes($id, 'created', " $tname [$name]");
-						$message .= "Created threshold for the Graph '<i>$tname</i>' using the Data Source '<i>$name</i>'<br>";
-					}
-				}
-			}
-		}
-	}
-		
-
-	if (strlen($message)) {
-		$_SESSION['thold_message'] = "<font size=-2>$message</font>";
-	}else{
-		$_SESSION['thold_message'] = "<font size=-2>Threshold(s) Already Exist - No Thresholds Created</font>";
-	}
 }
 
 ?>
