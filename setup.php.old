@@ -124,7 +124,7 @@ function linkdiscovery_check_dependencies() {
 function plugin_linkdiscovery_version () {
 	return array(
 		'name'     => 'LinkDiscovery',
-		'version'  => '0.43',
+		'version'  => '0.42',
 		'longname' => 'Network Link Discovery',
 		'author'   => 'Arno Streuli',
 		'homepage' => 'http://cactiusers.org',
@@ -141,12 +141,12 @@ function linkdiscovery_config_settings () {
 		return;
 
 	// get device list
-	$host_names = db_fetch_assoc("SELECT id, hostname, description FROM host WHERE DISABLED!='ON' ORDER BY hostname");
+	$host_names = db_fetch_assoc("SELECT id, hostname FROM host WHERE DISABLED!='ON' ORDER BY hostname");
 	$sample_host_names = array();
 
 	if (sizeof($host_names) > 0) {
 		foreach ($host_names as $ht) {
-			$sample_host_names[$ht['id']] = $ht['description'];
+			$sample_host_names[$ht['id']] = $ht['hostname'];
 		}
 	}
 
@@ -710,74 +710,11 @@ function aruba_get_oauth() {
 	return $token;
 }
 
-// check if the device exist
-function check_aruba_device( $host_id ) {
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
-	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
-	$itExist = false;
-	
-	$token = aruba_get_oauth();
-	if( ! $token ) {
-		return;
-	}
-		
-//**** check if the device exist
-    $name = $host_id['description'];
-
-	$url = $arubaurl . '/network-device/name/' . $name;
-
-	link_log("aruba device check exist: ". $url ."\n" );
-
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_POST, false );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "299" )
-    {
-		link_log("aruba device does not exist: ". $result['body'] ."\n" );
-    }
-	else {
-		$itExist = true;
-		link_log("aruba device existe: ". $result['body'] ."\n" );
-	}
-       
-	curl_close($handle);
-
-	return $itExist;
-}
-
 function add_aruba_device( $host_id ) {
 	$arubaurl = read_config_option("linkdiscovery_aruba_server");
 	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
 	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
 	
-	if( check_aruba_device( $host_id ) ) {
-		// device existe do not re-create it
-		return;
-	}
-
 	$token = aruba_get_oauth();
 	if( ! $token ) {
 		return;
