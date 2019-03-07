@@ -43,6 +43,14 @@ if (isset_request_var('hostname_dst')) {
 	set_request_var('hostname_dst', sanitize_search_string(get_request_var("hostname_dst")) );
 }
 
+if (isset_request_var('description_src') ) {
+	set_request_var('description_src', sanitize_search_string(get_request_var("description_src")) );
+}
+
+if (isset_request_var('description_dst')) {
+	set_request_var('description_dst', sanitize_search_string(get_request_var("description_dst")) );
+}
+
 // clean up sort_column 
 if (isset_request_var('sort_column')) {
 	set_request_var('sort_column', sanitize_search_string(get_request_var("sort_column")) );
@@ -62,6 +70,8 @@ if (isset_request_var('unknown_intf')) {
 load_current_session_value("page", "sess_linkdiscovery_current_page", "1");
 load_current_session_value("hostname_src", "sess_linkdiscovery_host", "");
 load_current_session_value("hostname_dst", "sess_linkdiscovery_host_dst", "");
+load_current_session_value("description_src", "sess_linkdiscovery_desc_src", "");
+load_current_session_value("description_dst", "sess_linkdiscovery_desc_dst", "");
 load_current_session_value("rows", "sess_linkdiscovery_rows", "-1");
 load_current_session_value("sort_column", "sess_linkdiscovery_sort_column", "host_src.id");
 load_current_session_value("sort_direction", "sess_linkdiscovery_sort_direction", "ASC");
@@ -69,6 +79,8 @@ load_current_session_value("sort_direction", "sess_linkdiscovery_sort_direction"
 $sql_where  = '';
 $hostname_src       = get_request_var("hostname_src");
 $hostname_dst       = get_request_var("hostname_dst");
+$description_src       = get_request_var("description_src");
+$description_dst       = get_request_var("description_dst");
 $unknown_intf 		= get_request_var("unknown_intf");
 
 $query_unknown = '';
@@ -83,6 +95,13 @@ if ($hostname_src != '') {
 }
 if ($hostname_dst != '') {
 	$sql_where .= " AND " . "host_dst.hostname like '%$hostname_dst%'";
+}
+
+if ($description_src != '') {
+	$sql_where .= " AND " . "host_src.description like '%$description_src%'";
+}
+if ($description_dst != '') {
+	$sql_where .= " AND " . "host_dst.description like '%$description_dst%'";
 }
 
 general_header();
@@ -151,6 +170,8 @@ function applyFilterChange(objForm) {
 	strURL += '&rows=' + objForm.rows.value;
 	strURL +=  '&unknown_intf=' + objForm.unknown_intf.value;
 	strURL +=  '&hostname_dst=' + objForm.hostname_dst.value;
+	strURL +=  '&description_src=' + objForm.description_src.value;
+	strURL +=  '&description_dst=' + objForm.description_dst.value;
 	document.location = strURL;
 }
 
@@ -170,13 +191,25 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 					&nbsp;Hostname Source:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="hostname_src" size="25" value="<?php print get_request_var("hostname_src");?>">
+					<input type="text" name="hostname_src" size="15" value="<?php print get_request_var("hostname_src");?>">
 				</td>
 				<td nowrap style='white-space: nowrap;' width="1">
 					&nbsp;Hostname Destination:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="hostname_dst" size="25" value="<?php print get_request_var("hostname_dst");?>">
+					<input type="text" name="hostname_dst" size="15" value="<?php print get_request_var("hostname_dst");?>">
+				</td>
+				<td nowrap style='white-space: nowrap;' width="1">
+					&nbsp;Description Source:&nbsp;
+				</td>
+				<td width="1">
+					<input type="text" name="description_src" size="15" value="<?php print get_request_var("description_src");?>">
+				</td>
+				<td nowrap style='white-space: nowrap;' width="1">
+					&nbsp;Description Destination:&nbsp;
+				</td>
+				<td width="1">
+					<input type="text" name="description_dst" size="15" value="<?php print get_request_var("description_dst");?>">
 				</td>
 				<td nowrap style='white-space: nowrap;' width="1">
 					&nbsp;&nbsp;Unknown Interface Only:&nbsp;&nbsp;
@@ -212,12 +245,16 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 			<?php
 				kill_session_var("sess_linkdiscovery_host");
 				kill_session_var("sess_linkdiscovery_host_dst");
+				kill_session_var("sess_linkdiscovery_desc_src");
+				kill_session_var("sess_linkdiscovery_desc_dst");
 				kill_session_var("sess_linkdiscovery_rows");
 				kill_session_var("sess_linkdiscovery_sort_column");
 				kill_session_var("sess_linkdiscovery_sort_direction");
 
 				unset($_REQUEST["hostname_src"]);
 				unset($_REQUEST["hostname_dst"]);
+				unset($_REQUEST["description_src"]);
+				unset($_REQUEST["description_dst"]);
 				unset($_REQUEST["rows"]);
 				unset($_REQUEST["sort_column"]);
 				unset($_REQUEST["sort_direction"]);
@@ -246,7 +283,6 @@ $display_text = array(
 	"hostname_src" => array("Hostname Source", "ASC"),
 	"desc_src" => array("Description Source", "ASC"),
 	"intf_src" => array("Interface Source", "ASC"),
-	
 	"hostname_dst" => array("Hostname Destination", "ASC"),
 	"desc_dst" => array("Description Destination", "ASC"),
 	"intf_dst" => array("Interface Destination", "ASC"),

@@ -46,6 +46,8 @@ function get_page( $url, $tagnames ){
 	$handle = curl_init($url);
 	curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
 	curl_setopt($handle, CURLOPT_FOLLOWLOCATION, true);
+	curl_setopt($handle, CURLOPT_HTTPPROXYTUNNEL, false);
+	curl_setopt($handle, CURLOPT_PROXY, '');
 	$html = curl_exec($handle);
 	curl_close($handle);
 

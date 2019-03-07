@@ -142,9 +142,20 @@ foreach($parms as $parameter) {
 
 if (read_config_option("linkdiscovery_log_debug") == "on") $debug = TRUE;
 
+// check if findhost is allready running
+$runningfile = $config['base_path'] . '/plugins/linkdiscovery'."/findhost-running";
+if ( file_exists( $runningfile ) ) {
+	linkdiscovery_debug("Findhost is running.\n");
+	exit;
+} else {
+	touch( $runningfile );
+}
+
+
 if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
 	linkdiscovery_debug("Link Discovery Polling is set to disabled.\n");
 	if(!isset($debug)) {
+		unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 		exit;
 	}
 }
@@ -206,6 +217,7 @@ if ($time_till_next_run < 0) {
 
 if ($time_till_next_run > 0 && $forcerun == FALSE) {
 	linkdiscovery_debug("not the right time\n");
+	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	exit;
 }
 
@@ -266,6 +278,7 @@ $known_hosts = $dbquery[0];
 
 if (!is_array($known_hosts)) {
 	linkdiscovery_debug("Link Discovery failed to pull seed hosts? Exiting.");
+	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	exit;
 }
 
@@ -337,7 +350,7 @@ DisplayStack();
 
 // End of process
 linkdiscovery_debug("\n\n\nEnd of process\n\n\n" );
-exit;
+unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 
 function DisplayStack(){
 	global $hostdiscovered;
@@ -440,7 +453,7 @@ linkdiscovery_debug("\n  Find peer: " . $hostrecord_array['hostname']." - ".$hos
 				linkdiscovery_save_data( $hostdiscovered[count($hostdiscovered)-1], $hostrecord_array, $canreaditfpeer,	$snmp_array );
 linkdiscovery_debug("End saved\n" );
 	
-				if (($CDPdeep-1 > 0) ){
+				if (($CDPdeep > 0) ){
 					if( strcasecmp($hostdiscovered[count($hostdiscovered)-2],$hostrecord_array['hostname']) != 0  ) 
 					{
 						if( $goodtogo == $isWifi || $goodtogo == $isPhone ) {
@@ -583,9 +596,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $sn
 			$snmp_array["availability_method"]  = '3';
 			$snmp_array["ping_method"]          = '1';
 			$snmp_array["snmp_version"] 		= '0';
-//			if( $goodtogo == $isPhone ){
-				$snmp_array["disable"]				= 'on';
-//			}
+			$snmp_array["disable"]				= 'on';
 			$snmp_array["notes"] = $seedhost;
 		} else {
 			// get host template id based on OS defined on automation
@@ -594,8 +605,6 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $sn
 			
 			$host_template = automation_find_os($snmp_sysDescr, '', '');
 			$snmp_array["host_template_id"] = $host_template['host_template'];
-linkdiscovery_debug(" template ".$snmp_array["host_template_id"]."\n" );
-			
 		}
 
 		$new_hostid = api_device_save( '0', $snmp_array['host_template_id'], $hostrecord_array['description'], $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_port'], $snmp_array['snmp_timeout'], $snmp_array['disable'], $snmp_array['availability_method'], $snmp_array['ping_method'], $snmp_array['ping_port'], $snmp_array['ping_timeout'], $snmp_array['ping_retries'], $snmp_array['notes'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'], $snmp_array['max_oids'], $snmp_array['device_threads'], 1, 0 );
@@ -636,7 +645,8 @@ display_output_messages();
 			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
 			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
 			
-			$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+			$serialno = getSerialNumber( $hostrecord_array,  $snmp_array, $type );
+//cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
 				
 			if( !empty( $serialno) ) {
 				db_execute("update host set serial_no='".$serialno. "' where id=" . $new_hostid );
@@ -669,7 +679,7 @@ display_output_messages();
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" numbers: ".$numbers."\n");
 				db_execute("update host set notes='". $numbers . "' where id=" . $new_hostid );
-			}
+			} else linkdiscovery_debug(" Can't get numbers "."\n");
 			
 			// get the serial number
 			$number = null;
@@ -683,7 +693,7 @@ display_output_messages();
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" ser numbers: ".$numbers."\n");
 				db_execute("update host set serial_no='". $numbers . "' where id=" . $new_hostid );
-			}
+			} else linkdiscovery_debug(" Can't get serial numbers "."\n");
 			
 			// get the model number
 			$number = null;
@@ -697,7 +707,7 @@ display_output_messages();
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" model numbers: ".$numbers."\n");
 				db_execute("update host set type='". $numbers . "' where id=" . $new_hostid );
-			}
+			} else linkdiscovery_debug(" Can't get model "."\n");
 			
 			// get the site_id based on the seedhost
 			$dbquery = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost ."' OR hostname='".$seedhost. "'" );
@@ -866,7 +876,8 @@ linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$snmp_erro
     }
 
 	/* lastly push host-specific information to our data sources */
-	push_out_host($seedhostid,0);
+//	push_out_host($seedhostid,0);
+linkdiscovery_debug("   end push out: " .$seedhostid . "\n" );
 }
 
 function buildGraph( $snmp_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array ) {
@@ -921,6 +932,35 @@ function linkdiscovery_add_tree ($host_id) {
 		// just save under the graph_tree_item, but with sub_tree_id as 0
 		api_tree_item_save(0, $tree_id, 3, 0, '', 0, $host_id, 0, 1, 1, false);
 	}
+}
+
+function getSerialNumber( $hostrecord_array, $snmp_array, $type )
+{
+
+
+	if( strcasecmp( $type, "WS-C4500X-32" ) == 0 ) {
+		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.500";
+
+		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+
+		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1000";
+
+		$serialno = $serialno . " ". cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+	} else if( ( strncasecmp( $type, "WS-C", 4 ) == 0 || strncasecmp( $type, "IE-", 3 ) == 0 ) && strncasecmp( $type, "WS-C3850", 8 ) != 0) {
+		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
+
+		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+	} else if( strncasecmp( $type, "C", 1 ) == 0 || strncasecmp( $type, "8", 1 ) == 0 || strncasecmp( $type, "WS-C3850", 8 ) == 0 || strncasecmp( $type, "285", 3 ) == 0 ) {
+		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1";
+
+		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+	} else if( strncasecmp( $type, "6", 1 ) == 0  {
+		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.22";
+
+		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
+	} else $serialno = " ";
+
+	return $serialno;
 }
 
 function gethostip( $hostrecord ){
