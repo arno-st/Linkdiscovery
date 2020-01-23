@@ -29,3 +29,7 @@
 
 ----[ Changelog
 
+0.44 added the option -S hostname the parsing of e specifique seed host, instead of the one define in the config
+0.45 Fix some issue with the access to IPAM 
+0.46 added the CPU graph option to be able to take a snmp_query not just the default cisco CPU
+0.47 Do not create threshold for Accesspoint Link

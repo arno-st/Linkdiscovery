@@ -90,9 +90,12 @@ linkdiscovery_check_upgrade();
 /* process calling arguments */
 $parms = $_SERVER["argv"];
 array_shift($parms);
+$known_hosts = array();
 
 $debug = FALSE;
 $forcerun = FALSE;
+
+if (read_config_option("linkdiscovery_log_debug") == "on") $debug = TRUE;
 
 foreach($parms as $parameter) {
 	@list($arg, $value) = @explode('=', $parameter);
@@ -103,6 +106,18 @@ foreach($parms as $parameter) {
 		break;
 	case "-d":
 		$debug = TRUE;
+		break;
+	case "-s": // seed host
+		linkdiscovery_debug("Force Seedhost: ".$value."\n" );
+		// Get information on the seed host
+		$dbquery = db_fetch_assoc("SELECT id, host_template_id, description, hostname, snmp_community, 
+		snmp_version, snmp_username, snmp_password, snmp_port, snmp_timeout, disabled, availability_method, 
+		ping_method, ping_port, ping_timeout, ping_retries, snmp_auth_protocol, snmp_priv_passphrase, 
+		snmp_priv_protocol, snmp_context, max_oids, device_threads FROM host 
+		WHERE host.hostname='" . $value."'");
+
+		$known_hosts = $dbquery[0];
+		linkdiscovery_debug("Force Seedhost: (".$value.") ".$known_hosts['hostname']."\n" );
 		break;
 	case "-h":
 		display_help();
@@ -125,8 +140,6 @@ foreach($parms as $parameter) {
 		exit;
 	}
 }
-
-if (read_config_option("linkdiscovery_log_debug") == "on") $debug = TRUE;
 
 if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
 	linkdiscovery_debug("Link Discovery Polling is set to disabled.\n");
@@ -231,11 +244,12 @@ $snmp_community = ($snmp_community=='')?$known_hosts['snmp_community']:$snmp_com
 
 linkdiscovery_debug("Link Discovery is now running\n");
 
-// Get information on the seed known host
-$dbquery = db_fetch_assoc("SELECT id, host_template_id, description, hostname, snmp_community, snmp_version, snmp_username, snmp_password, snmp_port, snmp_timeout, disabled, availability_method, ping_method, ping_port, ping_timeout, ping_retries, snmp_auth_protocol, snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids, device_threads FROM host where host.id=" . read_config_option("linkdiscovery_seed"));
+if ( $known_hosts['hostname']=='') {
+	// Get information on the seed known host
+	$dbquery = db_fetch_assoc("SELECT id, host_template_id, description, hostname, snmp_community, snmp_version, snmp_username, snmp_password, snmp_port, snmp_timeout, disabled, availability_method, ping_method, ping_port, ping_timeout, ping_retries, snmp_auth_protocol, snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids, device_threads FROM host where host.id=" . read_config_option("linkdiscovery_seed"));
 
-$known_hosts = array();
-$known_hosts = $dbquery[0];
+	$known_hosts = $dbquery[0];
+}
 
 if (!is_array($known_hosts)) {
 	linkdiscovery_debug("Link Discovery failed to pull seed hosts? Exiting.");
@@ -616,7 +630,8 @@ function linkdiscovery_graph_cpu( $new_hostid ){
 
 //**********************
 function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf ) {
-	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, $thold_status_graph_template, $snmp_packets_query_graph_id, $snmp_errors_query_graph_id;
+	global $snmp_status_query_graph_id, $snmp_traffic_query_graph_id, $thold_traffic_graph_template, 
+	$thold_status_graph_template, $snmp_packets_query_graph_id, $snmp_errors_query_graph_id, $goodtogo, $isWifi;
 
 /* create_complete_graph_from_template - creates a graph and all necessary data sources based on a
         graph template
@@ -661,16 +676,20 @@ function create_complete_graph_from_template($graph_template_id, $host_id, $snmp
 			$snmp_query_array["snmp_index"] = $src_intf;
 			$return_array = create_complete_graph_from_template( $traffic_graph_template_id, $seedhostid, $snmp_query_array, $empty);
 
-			// Create the Threshold
-			if( $thold_traffic_graph_template > 0 )
-				thold_graphs_create($thold_traffic_graph_template, $return_array['local_graph_id']);
+			// Create the Threshold, excpt for WifiLink
+				if( $goodtogo != $isWifi ) {
+					if( $thold_traffic_graph_template > 0 )
+						thold_graphs_create($thold_traffic_graph_template, $return_array['local_graph_id']);
+				}
 
 linkdiscovery_debug("   Created traffic graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
 linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$traffic_graph_template_id." exist: ".$existsAlready."\n" );
-			// Create the Threshold
-			if( $thold_traffic_graph_template > 0 )
-				thold_graphs_create($thold_traffic_graph_template, $existsAlready);
+			// Create the Threshold, except for WiFi
+			if( $goodtogo != $isWifi ) {
+				if( $thold_traffic_graph_template > 0 )
+					thold_graphs_create($thold_traffic_graph_template, $existsAlready);
+			}
 		}
 	}
 	// should we do a graph for NonUnicast packet
@@ -740,16 +759,20 @@ linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$errors_gr
 			$snmp_query_array["snmp_index"] = $src_intf;
 			$return_array = create_complete_graph_from_template( $status_graph_template_id, $seedhostid, $snmp_query_array, $empty);
 
-			// Create the Threshold 
-			if( $thold_status_graph_template > 0 )
+			// Create the Threshold, except for WiFi
+			if( $goodtogo != $isWifi ) {
+				if( $thold_status_graph_template > 0 )
 				thold_graphs_create($thold_status_graph_template, $return_array['local_graph_id']);
+			}
 
 linkdiscovery_debug("   Created status graph: " .$src_intf." - ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
 linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$status_graph_template_id." exist: ".$existsAlready."\n" );
-			// Create the Threshold
-			if( $thold_status_graph_template > 0 )
-				thold_graphs_create($thold_status_graph_template, $existsAlready);
+			// Create the Threshold, except for Wifi
+			if( $goodtogo != $isWifi ) {
+				if( $thold_status_graph_template > 0 )
+					thold_graphs_create($thold_status_graph_template, $existsAlready);
+			}
 		}
 
 	}
@@ -894,8 +917,9 @@ function linkdiscovery_debug($text) {
 /*	display_help - displays the usage of the function */
 function display_help () {
 	print "Link Discovery v0.1, Copyright 2017 - Arno Streuli\n\n";
-	print "usage: findhosts.php [-d] [-h] [--help] [-v] [--version]\n\n";
+	print "usage: findhosts.php [-f] [-d] [-h] [--help] [-v] [--version] -s [IP]\n\n";
 	print "-f	    - Force the execution of a Link Discovery process\n";
+	print "-s=IP    - force discovery from a specific host IP address\n";
 	print "-d	    - Display verbose output during execution\n";
 	print "-r	    - Drop and Recreate the Link Discovery Plugin's tables before running\n";
 	print "-v --version  - Display this help message\n";

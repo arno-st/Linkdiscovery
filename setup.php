@@ -124,7 +124,7 @@ function linkdiscovery_check_dependencies() {
 function plugin_linkdiscovery_version () {
 	return array(
 		'name'     => 'LinkDiscovery',
-		'version'  => '0.43',
+		'version'  => '0.47',
 		'longname' => 'Network Link Discovery',
 		'author'   => 'Arno Streuli',
 		'homepage' => 'http://cactiusers.org',
@@ -377,16 +377,30 @@ function linkdiscovery_config_arrays () {
 
 	// get CPU graph template
 	$linkdiscovery_cpu_graph = array();
-	$dbquery = db_fetch_assoc("SELECT graph_templates.id, graph_templates.name
-			FROM host_template,host_template_graph,graph_templates 
+	$dbquery1 = db_fetch_assoc("
+SELECT graph_templates.id, graph_templates.name
+			FROM graph_templates 
+			INNER JOIN host_template_graph ON graph_templates.id=host_template_graph.graph_template_id
+			INNER JOIN host_template ON host_template.id=host_template_graph.host_template_id
+			WHERE host_template.id=5
+			AND graph_templates.name LIKE '%cpu%'
+			");
+
+	$dbquery2 = db_fetch_assoc( "SELECT graph_templates.id, graph_templates.name
+			FROM host_template,host_template_snmp_query,snmp_query_graph, graph_templates
 			WHERE host_template.id=" . read_config_option('linkdiscovery_host_template') . "
-			AND host_template.id=host_template_graph.host_template_id
-			AND graph_templates.id=host_template_graph.graph_template_id AND graph_templates.name LIKE '%cpu%'");
+			AND host_template.id=host_template_snmp_query.host_template_id
+			AND snmp_query_graph.snmp_query_id=host_template_snmp_query.snmp_query_id
+			AND snmp_query_graph.graph_template_id=graph_templates.id
+			AND snmp_query_graph.name LIKE '%cpu%' ");
+			
+	$dbquery = array_merge( $dbquery1, $dbquery2 );
+
 
 	if (sizeof($dbquery) > 0) {
 		$linkdiscovery_cpu_graph[0] = "Disabled";
 		foreach ($dbquery as $ht) {
-		$linkdiscovery_cpu_graph[$ht['id']] = $ht['name'];
+			$linkdiscovery_cpu_graph[$ht['id']] = $ht['name'];
 		}
 	}
 	
@@ -606,6 +620,7 @@ function linkdiscovery_add_device( $host_id ) {
 	$useipam = read_config_option("linkdiscovery_useipam");
 	
 	if( $useipam ){
+		$result = array();
 		$ipamurl = read_config_option("linkdiscovery_ipam_url");
 		//$host_id["hostname"] do a nslook if necessary
 		$ip = gethostbyname($host_id['hostname']);
@@ -619,8 +634,8 @@ function linkdiscovery_add_device( $host_id ) {
 		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
 		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
 		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 
-								'X-IPM-Username:c19jYWN0aW5ldHdvcmthZG0=', 
-								'X-IPM-Password:VU5BVzJtM3NGRis5dVN6WmY=',
+								'X-IPM-Username: c19jYWN0aW5ldHdvcmthZG0=', 
+								'X-IPM-Password: VU5BVzJtM3NGRis5dVN6WmY=',
 								'Content-Type:application/json; charset=UTF-8',
 								'cache-control:no-cache') );
 
@@ -638,16 +653,22 @@ function linkdiscovery_add_device( $host_id ) {
         $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
         $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
+       	link_log( "ipam result code: ". $result['http_code'] );
+        link_log( "ipam result body: ". $result['body'] );
+		$json_errno = json_decode($_POST['errno'] );
+        link_log( "ipam result errno: ". $json_errno );
+
         if ( $result['http_code'] > "299" )
         {
-            $result['curl_error'] = $error;
-        	link_log( "ipam error: ". $result['curl_error'] );
-        }
-       
-        link_log( "ipam result: ". $result['body'] );
+        	link_log( "ipam URL requested: " . $url  );
+        } else {
+        	link_log( "ipam ". $ip  . " added"  );
+		}
+		linkdiscovery_add_right_2_group( $host_id );
 
 		curl_close($handle);
 
+		unset($result);
 	}
 	
 	$usearuba = read_config_option("linkdiscovery_aruba_server");
@@ -657,6 +678,65 @@ function linkdiscovery_add_device( $host_id ) {
 	}
 
 	return $host_id;
+}
+
+
+function linkdiscovery_add_right_2_group( $host_id ) {
+	$useipam = read_config_option("linkdiscovery_useipam");
+	
+	if( $useipam ){
+		$resultgroup = array();
+		$ipamurl = read_config_option("linkdiscovery_ipam_url");
+		$ip = gethostbyname($host_id['hostname']);
+		if( $ip == '' ) {
+			link_log( "ipam IP error: ". $ip );
+			return $host_id;
+		}
+
+		$url = $ipamurl . "/rest/group_iplnetdev_add?hostaddr=". $ip."&grp_name=0-VDL-000-1-IPAM-Lecture";
+		
+        $handle = curl_init();
+		curl_setopt( $handle, CURLOPT_URL, $url );
+		curl_setopt( $handle, CURLOPT_POST, true );
+		curl_setopt( $handle, CURLOPT_HEADER, true );
+		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 
+								'X-IPM-Username: c19jYWN0aW5ldHdvcmthZG0=', 
+								'X-IPM-Password: VU5BVzJtM3NGRis5dVN6WmY=',
+								'Content-Type:application/json; charset=UTF-8',
+								'cache-control:no-cache') );
+
+		$response = curl_exec($handle);
+		$error = curl_error($handle);
+		$resultgroup = array( 'header' => '',
+                         'body' => '',
+                         'curl_error' => '',
+                         'http_code' => '',
+                         'last_url' => '');
+
+        $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+        $resultgroup['header'] = substr($response, 0, $header_size);
+        $resultgroup['body'] = substr( $response, $header_size );
+        $resultgroup['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+        $resultgroup['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+
+       	link_log( "ipam netchange result code: ". $resultgroup['http_code'] );
+        link_log( "ipam netchange result body: ". $resultgroup['body'] );
+		$json_errno = json_decode($_POST['errno'] );
+        link_log( "ipam result errno: ". $json_errno );
+
+        if ( $resultgroup['http_code'] > "299" )
+        {
+        	link_log( "ipam netchange URL requested: " . $url  );
+        } else {
+			link_log( "ipam ". $ip  . " right added"  );
+		}
+       
+		curl_close($handle);
+		unset($resultgroup);
+	}
+	
 }
 
 function aruba_get_oauth() {
