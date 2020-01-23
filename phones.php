@@ -38,6 +38,10 @@ if (isset_request_var('phone')) {
 	set_request_var('phone', sanitize_search_string(get_request_var("phone")) );
 }
 
+if (isset_request_var('phone_IP')) {
+	set_request_var('phone_IP', sanitize_search_string(get_request_var("phone_IP")) );
+}
+
 if (isset_request_var('phone_number')) {
 	set_request_var('phone_number', sanitize_search_string(get_request_var("phone_number")) );
 }
@@ -48,6 +52,10 @@ if (isset_request_var('phone_type')) {
 
 if (isset_request_var('switch_name')) {
 	set_request_var('switch_name', sanitize_search_string(get_request_var("switch_name")) );
+}
+
+if (isset_request_var('switch_description')) {
+	set_request_var('switch_description', sanitize_search_string(get_request_var("switch_description")) );
 }
 
 if (isset_request_var('switch_port')) {
@@ -67,18 +75,22 @@ if (isset_request_var('sort_direction')) {
 	/* if the user pushed the 'clear' button */
 	if (isset($_REQUEST["clear"])) {
 		kill_session_var("sess_linkdiscovery_phone");
+		kill_session_var("sess_linkdiscovery_phone_IP");
 		kill_session_var("sess_linkdiscovery_phone_number");
 		kill_session_var("sess_linkdiscovery_phone_type");
 		kill_session_var("sess_linkdiscovery_switch_name");
+		kill_session_var("sess_linkdiscovery_switch_description");
 		kill_session_var("sess_linkdiscovery_switch_port");
 		kill_session_var("sess_linkdiscovery_rows");
 		kill_session_var("sess_linkdiscovery_sort_column");
 		kill_session_var("sess_linkdiscovery_sort_direction");
 
 		unset($_REQUEST["phone"]);
+		unset($_REQUEST["phone_IP"]);
 		unset($_REQUEST["phone_number"]);
 		unset($_REQUEST["phone_type"]);
 		unset($_REQUEST["switch_name"]);
+		unset($_REQUEST["switch_description"]);
 		unset($_REQUEST["switch_port"]);
 		unset($_REQUEST["rows"]);
 		unset($_REQUEST["sort_column"]);
@@ -87,9 +99,11 @@ if (isset_request_var('sort_direction')) {
 		/* if any of the settings changed, reset the page number */
 		$changed = 0;
 		$changed += phone_request_check_changed('phone', 'sess_linkdiscovery_phone');
+		$changed += phone_request_check_changed('phone_IP', 'sess_linkdiscovery_phone_IP');
 		$changed += phone_request_check_changed('phone_number', 'sess_linkdiscovery_phone_number');
 		$changed += phone_request_check_changed('phone_type', 'sess_linkdiscovery_phone_type');
 		$changed += phone_request_check_changed('switch_name', 'sess_linkdiscovery_switch_name');
+		$changed += phone_request_check_changed('switch_description', 'sess_linkdiscovery_switch_description');
 		$changed += phone_request_check_changed('switch_port', 'sess_linkdiscovery_switch_port');
 		$changed += phone_request_check_changed('rows', 'sess_linkdiscovery_rows');
 		$changed += phone_request_check_changed('sort_column', 'sess_thold_sort_column');
@@ -101,9 +115,11 @@ if (isset_request_var('sort_direction')) {
 // remember these search fields in session vars so we don't have to keep passing them around 
 load_current_session_value("page", "sess_linkdiscovery_current_page", "1");
 load_current_session_value("phone", "sess_linkdiscovery_phone", "");
+load_current_session_value("phone_IP", "sess_linkdiscovery_phone_IP", "");
 load_current_session_value("phone_number", "sess_linkdiscovery_phone_number", "");
 load_current_session_value("phone_type", "sess_linkdiscovery_phone_type", "");
 load_current_session_value("switch_name", "sess_linkdiscovery_switch_name", "");
+load_current_session_value("switch_description", "sess_linkdiscovery_switch_description", "");
 load_current_session_value("switch_port", "sess_linkdiscovery_switch_port", "");
 load_current_session_value("rows", "sess_linkdiscovery_rows", "-1");
 load_current_session_value("sort_column", "sess_linkdiscovery_sort_column", "phone_number");
@@ -111,13 +127,18 @@ load_current_session_value("sort_direction", "sess_linkdiscovery_sort_direction"
 
 $sql_where  = '';
 $phone       		= get_request_var("phone");
+$phone_IP      		= get_request_var("phone_IP");
 $phone_number       = get_request_var("phone_number");
 $phone_type       	= get_request_var("phone_type");
 $switch_name       	= get_request_var("switch_name");
+$switch_description = get_request_var("switch_description");
 $switch_port       	= get_request_var("switch_port");
 
 if ($phone != '') {
-	$sql_where .= " AND " . "host.hostname LIKE '%$phone%'";
+	$sql_where .= " AND " . "host.description LIKE '%$phone%'";
+}
+if ($phone_IP != '') {
+	$sql_where .= " AND " . "host.hostname LIKE '%$phone_IP%'";
 }
 if ($phone_number != '') {
 	$sql_where .= " AND " . "host.notes LIKE '%$phone_number%'";
@@ -128,6 +149,9 @@ if ($phone_type != '') {
 
 if ($switch_name != '') {
 	$sql_where .= " AND " . "switch.hostname LIKE '%$switch_name%'";
+}
+if ($switch_description != '') {
+	$sql_where .= " AND " . "switch.description LIKE '%$switch_description%'";
 }
 if ($switch_port != '') {
 	$sql_where .= " AND " . "intf_src.field_value LIKE '%$switch_port%'";
@@ -164,18 +188,22 @@ $sql_limit = $page . ',' . $per_row;
 $sortby  = get_request_var("sort_column");
 if( strcmp($sortby, 'phone')  == 0) {
 	$sortby="phone";
+} elseif( strcmp($sortby, 'phone_IP')  == 0) {
+	$sortby="phone_IP";
 } else if( strcmp($sortby, 'phone_number')  == 0) {
 	$sortby="phone_number";
 } else if( strcmp($sortby, 'phone_type')  == 0) {
 	$sortby="phone_type";
 } else if( strcmp($sortby, 'switch_name')  == 0) {
 	$sortby="switch_name";
+} else if( strcmp($sortby, 'switch_description')  == 0) {
+	$sortby="switch_description";
 } else if( strcmp($sortby, 'switch_port')  == 0) {
 	$sortby="switch_port";
 }
 
-$sql_query = "SELECT host.hostname as phone, host.notes as phone_number, host.type as phone_type, 
-		switch.hostname as switch_name, intf_src.field_value as switch_port 
+$sql_query = "SELECT host.description as phone, host.hostname as phone_IP, host.notes as phone_number, host.type as phone_type, 
+		switch.hostname as switch_name, switch.description as switch_description, intf_src.field_value as switch_port 
 		FROM host, host as switch, plugin_linkdiscovery_intf discointf, host_snmp_cache intf_src 
 		WHERE host.isPhone ='on' 
 		AND host.id = discointf.host_id_dst 
@@ -205,9 +233,11 @@ function phone_request_check_changed($request, $session) {
 function applyFilterChange(objForm) {
 	strURL = '?header=false&phone=' + objForm.phone.value;
 	strURL += '&rows=' + objForm.rows.value;
+	strURL +=  '&phone_IP=' + objForm.phone_IP.value;
 	strURL +=  '&phone_number=' + objForm.phone_number.value;
 	strURL +=  '&phone_type=' + objForm.phone_type.value;
 	strURL +=  '&switch_name=' + objForm.switch_name.value;
+	strURL +=  '&switch_description=' + objForm.switch_description.value;
 	strURL +=  '&switch_port=' + objForm.switch_port.value;
 	document.location = strURL;
 }
@@ -224,31 +254,43 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 	<form id=''linkdiscovery' action="<?php print $config['url_path'];?>plugins/linkdiscovery/phones.php?header=false">
 		<table width="100%" cellpadding="0" cellspacing="0">
 			<tr class="noprint">
-				<td nowrap style='white-space: nowrap;' width="1">
+				<td nowrap style='white-space:' width="1">
 					&nbsp;Phone:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="phone" size="25" value="<?php print get_request_var("phone");?>">
+					<input type="text" name="phone" size="15" value="<?php print get_request_var("phone");?>">
 				</td>
-				<td nowrap style='white-space: nowrap;' width="1">
+				<td nowrap style='white-space:' width="1">
+					&nbsp;Phone IP:&nbsp;
+				</td>
+				<td width="1">
+					<input type="text" name="phone_IP" size="15" value="<?php print get_request_var("phone_IP");?>">
+				</td>
+				<td nowrap style='white-space:' width="1">
 					&nbsp;Phone number:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="phone_number" size="25" value="<?php print get_request_var("phone_number");?>">
+					<input type="text" name="phone_number" size="5" value="<?php print get_request_var("phone_number");?>">
 				</td>
-				<td nowrap style='white-space: nowrap;' width="1">
+				<td nowrap style='white-space:' width="1">
 					&nbsp;Phone type:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="phone_type" size="25" value="<?php print get_request_var("phone_type");?>">
+					<input type="text" name="phone_type" size="8" value="<?php print get_request_var("phone_type");?>">
 				</td>
-				<td nowrap style='white-space: nowrap;' width="1">
+				<td nowrap style='white-space:' width="1">
 					&nbsp;Switch name:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="switch_name" size="25" value="<?php print get_request_var("switch_name");?>">
+					<input type="text" name="switch_name" size="15" value="<?php print get_request_var("switch_name");?>">
 				</td>
-				<td nowrap style='white-space: nowrap;' width="1">
+				<td nowrap style='white-space:' width="1">
+					&nbsp;Switch description:&nbsp;
+				</td>
+				<td width="1">
+					<input type="text" name="switch_description" size="25" value="<?php print get_request_var("switch_description");?>">
+				</td>
+				<td nowrap style='white-space:' width="1">
 					&nbsp;Rows:&nbsp;
 				</td>
 				<td width="1">
@@ -263,7 +305,7 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 						?>
 					</select>
 				</td>
-				<td nowrap style='white-space: nowrap;'>
+				<td nowrap style='white-space:'>
 					<input type="submit" value="Go" title="Set/Refresh Filters">
 					<input id='clear' type='button' title="Clear Filters" value='<?php print __('Clear');?>' onClick='clearFilter()'>
 				</td>
@@ -292,9 +334,11 @@ print $nav;
 
 $display_text = array(
 	"phone" => array("Phone", "ASC"),
+	"phone_IP" => array("Phone IP", "ASC"),
 	"phone_number" => array("Phone number", "ASC"),
 	"phone_type" => array("Phone type", "ASC"),
 	"switch_name" => array("Switch name", "ASC"),
+	"switch_description" => array("Switch description", "ASC"),
 	"switch_port" => array("Switch port", "ASC"),
 	"nosort" => array("", ""));
 
@@ -313,9 +357,11 @@ if (sizeof($result)) {
 		print"<tr class='$class tablerow'>";
 		print"<td style='padding: 4px; margin: 4px;'>" 
 			. $row['phone'] . '</td>
+			<td>' . $row['phone_IP'] . '</td>
 			<td>' . $row['phone_number'] . '</td>
 			<td>' . $row['phone_type'] . '</td>
 			<td>' . $row['switch_name'] . '</td>
+			<td>' . $row['switch_description'] . '</td>
 			<td>' . $row['switch_port'] . '</td>
 			<td align="right">';
 
