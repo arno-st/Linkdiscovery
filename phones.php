@@ -167,7 +167,6 @@ $total_rows = db_fetch_cell("SELECT count(host.hostname)
 		AND intf_src.host_id=switch.id 
 		AND intf_src.field_name='ifDescr' 
 		AND intf_src.snmp_index IN (discointf.snmp_index_src, discointf.snmp_index_src=0)
-		AND intf_src.snmp_query_id=1
 	$sql_where");
 
 /* if the number of rows is -1, set it to the default */
@@ -211,7 +210,6 @@ $sql_query = "SELECT host.description as phone, host.hostname as phone_IP, host.
 		AND intf_src.host_id=switch.id 
 		AND intf_src.field_name='ifDescr' 
 		AND intf_src.snmp_index IN (discointf.snmp_index_src, discointf.snmp_index_src=0)
-		AND intf_src.snmp_query_id=1
  		$sql_where 
 		ORDER BY " . $sortby . " " . get_request_var("sort_direction") . "
 		LIMIT " . $sql_limit;
