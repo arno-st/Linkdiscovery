@@ -48,6 +48,7 @@ include_once($config['base_path'] . '/plugins/linkdiscovery/snmp.php');
 include_once($config["base_path"] . '/lib/ping.php');
 include_once($config["base_path"] . '/lib/api_tree.php');
 include_once($config["base_path"] . "/lib/api_automation.php");
+include_once($config['base_path'] . '/lib/poller.php');
 
 include_once($config["base_path"] . '/lib/sort.php');
 include_once($config["base_path"] . '/lib/html_form_template.php');
