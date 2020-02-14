@@ -194,6 +194,13 @@ function linkdiscovery_config_settings () {
 			"max_length" => 80,
 			"default" => ""
 		),
+		'linkdiscovery_aruba_access_token' => array(
+			'friendly_name' => "Aruba ClearPass Access Token",
+			'description' => 'The ClearPass Access Token API',
+			"method" => "textbox_password",
+			"max_length" => 80,
+			"default" => ""
+		),
 		'linkdiscovery_aruba_radius_secret' => array(
 			'friendly_name' => "Aruba ClearPass radius secret",
 			'description' => 'The radius secret for a new device',
@@ -491,24 +498,19 @@ function linkdiscovery_utilities_action ($action) {
 		// query the host id to remove from the tree
 		$dbquery = db_fetch_assoc("SELECT id from plugin_linkdiscovery_hosts ORDER by id");
 		if (sizeof($dbquery) > 0) {
-/* api_tree_delete_content - given a tree and a branch/leaf, recursively remove all elements
- * @arg $tree_id - The tree to remove from
- * @arg $leaf_id - The branch to remove
- * @returns - null */
-//			api_tree_delete_node_content($tree_id, $leaf_id);
-		$tree_id = read_config_option("linkdiscovery_tree");
-		$sub_tree_id = read_config_option("linkdiscovery_sub_tree");
+			$tree_id = read_config_option("linkdiscovery_tree");
+			$sub_tree_id = read_config_option("linkdiscovery_sub_tree");
 	
 	// fetch tree_items, if no return that mean the location has to be in the root tree
-		if ($sub_tree_id <> 0)
-		{
-			$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id. ' AND host_id=0 AND id='.$sub_tree_id);
-			if ( sizeof($parent) == 0 ) {
-				api_tree_delete_node_content($tree_id, 0 );
-			} else api_tree_delete_node_content( $parent, $sub_tree_id );
-		} else { // for sure it's on tree, root one
-				api_tree_delete_node_content($tree_id, 0 );
-		}
+			if ($sub_tree_id <> 0)
+			{
+				$parent = db_fetch_row('SELECT parent FROM graph_tree_items WHERE graph_tree_id = ' . $tree_id. ' AND host_id=0 AND id='.$sub_tree_id);
+				if ( sizeof($parent) == 0 ) {
+					api_tree_delete_node_content($tree_id, 0 );
+				} else api_tree_delete_node_content( $parent, $sub_tree_id );
+			} else { // for sure it's on tree, root one
+					api_tree_delete_node_content($tree_id, 0 );
+			}
 
 			db_execute('DELETE FROM plugin_linkdiscovery_hosts');
 			db_execute('DELETE FROM plugin_linkdiscovery_intf');
@@ -519,7 +521,7 @@ function linkdiscovery_utilities_action ($action) {
 		bottom_footer();
 	} elseif ($action == 'linkdiscovery_count') {
 		top_header();
-// code here
+
 	/* ================= input validation and session storage ================= */
 		$filters = array(
 			'rows' => array(
@@ -835,7 +837,6 @@ function linkdiscovery_utilities_action ($action) {
 		<?php
 		html_end_box();
 
-	// sql query: SELECT name,description FROM host WHERE type LIKE "%".$model."%" 
 		$sql_where = '';
 
 	/* filter by search string */
@@ -985,7 +986,8 @@ function linkdiscovery_add_device( $host_id ) {
 
 function aruba_get_oauth() {
 	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-
+	$aruba_access_token = read_config_option("linkdiscovery_aruba_access_token");
+	
 	$url = $arubaurl . '/oauth';
 //**** get the auth token
 	$handle = curl_init();
@@ -999,9 +1001,9 @@ function aruba_get_oauth() {
         '{
         "grant_type": "client_credentials",
         "client_id": "LinkDiscovery",
-        "client_secret": "r4rL0DvX+/RQBeSoHvH5umxPJ40QTuoWRxh5g9o8lLIU"
+        "client_secret": "'.$aruba_access_token.'"
         }'
-    );
+    );  //r4rL0DvX+/RQBeSoHvH5umxPJ40QTuoWRxh5g9o8lLIU
 
 
 	$response = curl_exec($handle);
