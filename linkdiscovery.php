@@ -114,6 +114,8 @@ $total_rows = db_fetch_cell("SELECT
     AND intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
     AND intf_src.snmp_index=discointf.snmp_index_src
 	AND intf_dst.snmp_index IN (discointf.snmp_index_dst, discointf.snmp_index_dst=0)	
+	AND snmp_query.id=intf_src.snmp_query_id 
+	AND intf_src.snmp_query_id=(SELECT id FROM snmp_query WHERE name LIKE '%nterface%')
 	$query_unknown 
 	$sql_where");
 
@@ -153,6 +155,7 @@ $sql_query = "SELECT host_src.id,
         AND intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
         AND intf_src.snmp_index=discointf.snmp_index_src 
 		AND intf_dst.snmp_index IN (discointf.snmp_index_dst, discointf.snmp_index_dst=0)	
+		AND intf_src.snmp_query_id=(SELECT id FROM snmp_query WHERE name LIKE '%nterface%')
 		$query_unknown 
 		$sql_where 
 		ORDER BY " . $sortby . " " . get_request_var("sort_direction") . "

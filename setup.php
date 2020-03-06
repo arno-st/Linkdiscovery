@@ -265,6 +265,12 @@ function linkdiscovery_config_settings () {
 			'method' => 'checkbox',
 			'default' => 'off'
 			),
+		"linkdiscovery_parse_phone" => array(
+			"friendly_name" => "Parse Identified Phone",
+			"description" => "Should we Parse discovered IP Phone to find the phone number of it (can take a lot of time).",
+			'method' => 'checkbox',
+			'default' => 'off'
+			),
 		'linkdiscovery_no_scan' => array(
 			'friendly_name' => "Don't scan this host",
 			'description' => 'Comma separeted hostname, where scanning is prohibited. Hostname must match hostname defined on cacti',
@@ -933,6 +939,11 @@ function linkdiscovery_device_remove( $hosts_id ){
 
 function linkdiscovery_add_device( $host_id ) {
 	$useipam = read_config_option("linkdiscovery_useipam");
+	
+	// if device is disabled, don't save on IPAM or other
+	if ($host_id['disabled'] == 'on') {
+		return $host_id;
+	}
 	
 	if( $useipam ){
 		$ipamurl = read_config_option("linkdiscovery_ipam_url");

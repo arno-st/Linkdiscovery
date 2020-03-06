@@ -65,8 +65,9 @@ $cdpinterfacename    = ".1.3.6.1.4.1.9.9.23.1.1.1.1.6";
 $cdpdeviceip         = ".1.3.6.1.4.1.9.9.23.1.2.1.1.4"; // hex value: 0A 55 00 0B -> 10 85 00 11
 $cdpdevicename       = ".1.3.6.1.4.1.9.9.23.1.2.1.1.6";
 $cdpremoteitfname    = ".1.3.6.1.4.1.9.9.23.1.2.1.1.7";
-$cdpremotetype		 = ".1.3.6.1.4.1.9.9.23.1.2.1.1.8"; 
+$cdpremotetype		 = ".1.3.6.1.4.1.9.9.23.1.2.1.1.8"; // platforme
 $cdpdevicecapacities = ".1.3.6.1.4.1.9.9.23.1.2.1.1.9";
+
 // LLDP info
 $lldpShortLocPortId  = ".1.0.8802.1.1.2.1.3.7.1.3";
 $lldpLongLocPortId 	 = ".1.0.8802.1.1.2.1.3.7.1.4";
@@ -74,6 +75,9 @@ $lldpLongLocPortId 	 = ".1.0.8802.1.1.2.1.3.7.1.4";
 $lldpRemoteSystemsData = ".1.0.8802.1.1.2.1.4";
 $lldpRemTable 		 = ".1.0.8802.1.1.2.1.4.1";
 $lldpRemEntry 		 = ".1.0.8802.1.1.2.1.4.1.1";
+
+$lldpremoteserialnum = ".1.0.8802.1.1.2.1.5.4795.1.3.3.1.4.0"; //.5.4 .3.5 // phone serial number
+$lldpremotemodel     = ".1.0.8802.1.1.2.1.5.4795.1.3.3.1.6.0"; //.5.4 .3.5 // phone model
 
 $lldpremotechassitypeid  = ".1.0.8802.1.1.2.1.4.1.1.4.0"; //iso.0.8802.1.1.2.1.4.1.1.4.0.26.25 = INTEGER: 4
 $lldpremotechassisid  	 = ".1.0.8802.1.1.2.1.4.1.1.5.0"; //iso.0.8802.1.1.2.1.4.1.1.5.0.26.25 = Hex-STRING: EC 1D 8B E2 82 00
@@ -207,8 +211,8 @@ $poller_interval = read_config_option("poller_interval");
 
 $seconds_offset = read_config_option("linkdiscovery_collection_timing") * 60;
 
-if ($forcerun == FALSE && $seconds_offset != 0) {
-	linkdiscovery_debug("not the right time\n");
+if ($forcerun == FALSE && $seconds_offset == 0) {
+	linkdiscovery_debug("FALSE not the right time\n");
 	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	exit;
 }
@@ -582,7 +586,7 @@ function hostgetipcapa( $seedhost, $hostoidindex, $snmp_array ){
 
 	$ret['ip'] = str_replace(":", " ", $searchip);
 	$ret['capa'] = $searchcapa;
-	$ret['type'] = $searchtype;
+	$ret['type'] = trim($searchtype);
 
 //linkdiscovery_debug("seed: ". $seedhost. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
 
@@ -750,21 +754,19 @@ $snmp_array["host_template_id"]."\n");
 	}
 	// save the type and serial number to the new host's record
 	if( $extenddb && !empty($hostrecord_array['hostname']) ) {
-		// get the serial number and type, not for wifi or phone
-		if( $goodtogo != $isWifi && $goodtogo != $isPhone && !empty($hostrecord_array['hostname']) ) {
+		// get the serial number and type
+		if(  !empty($hostrecord_array['hostname']) ) {
 			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
 			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
-			
-			$serialno = getSerialNumber( $hostrecord_array,  $snmp_array, $type );
-				
-			if( !empty( $serialno) ) {
-				db_execute("update host set serial_no='".$serialno. "' where id=" . $new_hostid );
-			}
-		} else if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
+		}
+		if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
 			// set the flag isPhone
 			db_execute("update host set isPhone='on' where id=" . $new_hostid );
 
-			parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
+			$readphone = read_config_option('linkdiscovery_parse_phone');
+			if( $readphone ) {
+				parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
+			}
 
 		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) ) { // Get the WA information
 			db_execute("update host set type='".str_replace("cisco", "", $hostrecord_array['type']). "' where id=" . $new_hostid );
@@ -1130,32 +1132,6 @@ function linkdiscovery_add_tree ($host_id) {
 		// just save under the graph_tree_item, but with sub_tree_id as 0
 		api_tree_item_save(0, $tree_id, 3, 0, '', 0, $host_id, 0, 1, 1, false);
 	}
-}
-
-function getSerialNumber( $hostrecord_array, $snmp_array, $type ){
-	if( strcasecmp( $type, "WS-C4500X-32" ) == 0 ) {
-		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.500";
-
-		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
-
-		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1000";
-
-		$serialno = $serialno . " ". cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
-	} else if( ( strncasecmp( $type, "WS-C", 4 ) == 0 || strncasecmp( $type, "IE-", 3 ) == 0 ) && strncasecmp( $type, "WS-C3850", 8 ) != 0) {
-		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1001";
-
-		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
-	} else if( strncasecmp( $type, "C", 1 ) == 0 || strncasecmp( $type, "8", 1 ) == 0 || strncasecmp( $type, "WS-C3850", 8 ) == 0 || strncasecmp( $type, "285", 3 ) == 0 ) {
-		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.1";
-
-		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
-	} else if( strncasecmp( $type, "6", 1 ) == 0 ) {
-		$snmpserialno = ".1.3.6.1.2.1.47.1.1.1.1.11.22";
-
-		$serialno = cacti_snmp_get( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpserialno, $snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], $snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], $snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'] );
-	} else $serialno = " ";
-
-	return $serialno;
 }
 
 function gethostip( $hostrecord ){
