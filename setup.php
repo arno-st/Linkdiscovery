@@ -350,7 +350,7 @@ function linkdiscovery_config_arrays () {
 	}
 }
 
-function routerconfigs_draw_navigation_text ($nav) {
+function linkdiscovery_draw_navigation_text ($nav) {
 	$nav['linkdiscovery.php:'] = array(
 		'title' => __('Linkdiscovery', 'linkdiscovery'),
 		'mapping' => 'index.php:',
