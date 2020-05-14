@@ -653,10 +653,10 @@ function linkdiscovery_utilities_action ($action) {
 			$sql_where .= ' WHERE type LIKE ' . db_qstr('%' . get_request_var('filter') . '%');
 		}
 
+		$total_rows = db_fetch_cell("SELECT COUNT(DISTINCT(type)) FROM host". $sql_where);
+		
 		$sql_where .= ' GROUP BY type ';
 
-		$total_rows = db_fetch_cell("SELECT COUNT(DISTINCT(type)) FROM host");
-		
 		$linkdiscovery_count_sql = "SELECT type,COUNT(1) as occurence FROM host 
 			$sql_where 
 			ORDER BY " . get_request_var('sort_column') . ' ' . get_request_var('sort_direction') . '
