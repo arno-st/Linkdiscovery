@@ -1071,7 +1071,7 @@ function add_aruba_device( $host_id ) {
 													 "Authorization: Bearer $token") );
 
     $desc = $host_id['description'];
-    $name = $host_id['hostname'];
+    $name = $host_id['description'];
     if( $host_id['snmp_version'] == '2' ) {
     	$snmp_version = "V2C";
     } else if( $host_id['snmp_version'] == '3' ) {
