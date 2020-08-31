@@ -55,3 +55,4 @@ pt the RRD file.
 1.3.2 Add the hash for Add the ClearPass access Token on the gui, instead of hardcoded
 1.3.3 Add the option to disable the parsing of discovered phone, was used to have the phone number, but it's time consuming
 1.3.4 Correction on the display of discovered link due to a change in the snmp_query ID, same for phone display
+1.3.5 Correction for device count and display of device count, on utilities

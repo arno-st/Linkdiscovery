@@ -780,7 +780,7 @@ function linkdiscovery_utilities_action ($action) {
 		}
 
 		function clearFilter() {
-			strURL = urlPath+'utilities.php?action=linkdiscovery_display&clear=1&header=false&model='+$('#model').val();
+			strURL = urlPath+'utilities.php?action=linkdiscovery_count&clear=1&header=false';
 			loadPageNoHeader(strURL);
 		}
 		$(function() {

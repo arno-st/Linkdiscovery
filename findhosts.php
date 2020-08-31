@@ -316,7 +316,7 @@ if( db_fetch_cell("SELECT directory FROM plugin_config WHERE directory='extenddb
 	$extenddb = true;
 }
 
-linkdiscovery_debug("Link Discovery is now running\n");
+cacti_log('Start linkdiscovery', false, 'LINKDISCOVERY' );
 
 if ( $known_hosts=='') {
 	// Get information on the seed known host
