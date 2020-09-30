@@ -678,27 +678,11 @@ function linkdiscovery_utilities_action ($action) {
 		html_header_sort($display_text, get_request_var('sort_column'), get_request_var('sort_direction'), 1, 'utilities.php?action=linkdiscovery_count');
 
 		if (cacti_sizeof($linkdiscovery_count)) {
-			$i = 0;
 			foreach ($linkdiscovery_count as $item) {
-				$type   	= filter_value($item['type'], get_request_var('filter'));
-				$occurence	= filter_value($item['occurence'], get_request_var('filter'));
-
-				if ($i % 2 == 0) {
-					$class = 'odd';
-				} else {
-					$class = 'even';
-				}
-				print "<tr class='$class'>\n";
-				?>
-				<td>
-					<?php print filter_value($item['type'], get_request_var('filter'), 'utilities.php?action=linkdiscovery_display&sort_column=description&model=' . $item['type']);?>
-				</td>
-
-				<td>
-					<?php print html_escape($item['occurence']);?>
-				</td>
-				<?php
-				$i++;
+				if( empty($item['type']) ) $item['type'] = 'empty';
+				form_alternate_row('line' . $item['type'], false);
+				form_selectable_cell(filter_value($item['type'], get_request_var('filter'), 'utilities.php?action=linkdiscovery_display&sort_column=description&model=' . $item['type']), $item['type']);
+				form_selectable_cell(filter_value($item['occurence'], get_request_var('filter')), $item['occurence']);
 				form_end_row();
 			}
 		}
@@ -760,6 +744,7 @@ function linkdiscovery_utilities_action ($action) {
 		} else {
 			$rows = get_request_var('rows');
 		}
+		if( get_request_var('model') == 'empty' ) set_request_var('model', '');
 
 		$model = get_request_var('model');
 		$refresh['seconds'] = '300';
@@ -850,7 +835,7 @@ function linkdiscovery_utilities_action ($action) {
 
 		$total_rows = db_fetch_cell("SELECT COUNT(*) FROM host ".$sql_where);
 		
-		$linkdiscovery_display_sql = "SELECT hostname, description FROM host
+		$linkdiscovery_display_sql = "SELECT id, hostname, description FROM host
 			$sql_where
 			ORDER BY " . get_request_var('sort_column') . ' ' . get_request_var('sort_direction') . '
 			LIMIT ' . ($rows*(get_request_var('page')-1)) . ',' . $rows;
@@ -873,11 +858,9 @@ function linkdiscovery_utilities_action ($action) {
 
 		if (cacti_sizeof($linkdiscovery_display)) {
 			foreach ($linkdiscovery_display as $item) {
-				$hostname        = filter_value($item['hostname'], get_request_var('filter'));
-				$description       = filter_value($item['description'], get_request_var('filter'));
 				form_alternate_row('line' . $item['hostname'], false);
-				form_selectable_cell($hostname, $item['hostname']);
-				print "<td>$description</td>";
+				form_selectable_cell(filter_value($item['hostname'], get_request_var('filter'), 'host.php?action=edit&id=' . $item['id']), $item['id']);
+				form_selectable_cell(filter_value($item['description'], get_request_var('filter'), 'host.php?action=edit&id=' . $item['id']), $item['id']);
 				form_end_row();
 			}
 		}
