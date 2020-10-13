@@ -66,8 +66,10 @@ function plugin_linkdiscovery_upgrade () {
 function linkdiscovery_check_upgrade() {
 	$version = plugin_linkdiscovery_version ();
 	$current = $version['version'];
-	$old     = read_config_option('plugin_linkdiscovery_version');
-	if ($current != $old) {
+	$old     = db_fetch_cell('SELECT version
+		FROM plugin_config
+		WHERE directory="linkdiscovery"');
+	if ($current != $old ) {
 
 		// Set the new version
 		db_execute("UPDATE plugin_config SET version='$current' WHERE directory='linkdiscovery'");
@@ -83,6 +85,10 @@ function linkdiscovery_check_upgrade() {
 			db_execute("DELETE FROM settings WHERE name='linkdiscovery_status_thold';");
 			db_execute("DELETE FROM settings WHERE name='linkdiscovery_traffic_thold';");
 			db_execute("DELETE FROM settings WHERE name='linkdiscovery_host_template';");
+		}
+		if( $old < '1.3.7' ) {
+			db_execute("ALTER TABLE `plugin_linkdiscovery_hosts` CHANGE `community` `snmp_community` VARCHAR(100);");
+			link_log('new: '.$current .' old:'.$old);
 		}
 	}
 }
@@ -215,40 +221,6 @@ function linkdiscovery_config_settings () {
 			"max_length" => 80,
 			"default" => ""
 		),
-		"linkdiscovery_graph_header" => array(
-			"friendly_name" => "Graph creation",
-			"method" => "spacer",
-			),
-		'linkdiscovery_CPU_graph' => array(
-			'friendly_name' => 'CPU Graph',
-			'description' => 'Enable CPU Graph',
-			'method' => 'checkbox',
-			'default' => 'off'
-			),
-		'linkdiscovery_status_graph' => array(
-			'friendly_name' => 'Status Graph',
-			'description' => 'Enable Status Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('status'), 
-			),
-		'linkdiscovery_traffic_graph' => array(
-			'friendly_name' => 'Traffic Graph',
-			'description' => 'Enable Traffic Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('traffic'), 
-			),
-		'linkdiscovery_packets_graph' => array(
-			'friendly_name' => 'Packets Graph',
-			'description' => 'Enable Non-unicast or other packets Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('Packets'), 
-			),
-		'linkdiscovery_errors_graph' => array(
-			'friendly_name' => 'Error Graph',
-			'description' => 'Enable Error Graph, and which type to use',
-			'method' => "drop_array",
-			'array' => linkdiscovery_get_graph_template('Error'), 
-			),
 		"linkdiscovery_other_header" => array(
 			"friendly_name" => "other option",
 			"method" => "spacer",
@@ -376,7 +348,7 @@ function linkdiscovery_setup_table () {
 	$data['columns'][] = array('name' => 'host_template_id', 'type' => 'mediumint(8)', 'NULL' => false, 'default' => '0');
 	$data['columns'][] = array('name' => 'description', 'type' => 'varchar(150)', 'NULL' => false, 'default' => '');
 	$data['columns'][] = array('name' => 'hostname', 'type' => 'varchar(250)', 'NULL' => true);
-	$data['columns'][] = array('name' => 'community', 'type' => 'varchar(100)', 'NULL' => false, 'default' => '');
+	$data['columns'][] = array('name' => 'snmp_community', 'type' => 'varchar(100)', 'NULL' => false, 'default' => '');
 	$data['columns'][] = array('name' => 'snmp_version', 'type' => 'tinyint(1)', 'unsigned' => 'unsigned', 'NULL' => false, 'default' => '1');
 	$data['columns'][] = array('name' => 'snmp_username', 'type' => 'varchar(50)', 'NULL' => true);
 	$data['columns'][] = array('name' => 'snmp_password', 'type' => 'varchar(50)', 'NULL' => true);
@@ -472,26 +444,6 @@ function treeList( $headers, $treeId=0, $parentId, $spaces ){
 	} else $header[0] = '';
 	
 	return $headers;
-}
-
-function linkdiscovery_get_graph_template( $type) {
-	$header = array();
-
-	$dbquery = db_fetch_assoc("SELECT DISTINCT snmp_query_graph.id, snmp_query_graph.name
-	FROM host_template_snmp_query,snmp_query,snmp_query_graph,graph_templates 
-	WHERE host_template_snmp_query.snmp_query_id=snmp_query.id
-	AND snmp_query.id=snmp_query_graph.snmp_query_id
-	AND snmp_query_graph.graph_template_id=graph_templates.id
-	AND graph_templates.name LIKE'%$type%'");
-
-	if (sizeof($dbquery) > 0) {
-		$header[0] = "Disabled";
-		foreach ($dbquery as $ht) {
-		$header[$ht['id']] = $ht['name'];
-		}
-	}
-
-	return $header;
 }
 
 function linkdiscovery_utilities_action ($action) {
