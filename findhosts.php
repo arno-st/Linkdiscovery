@@ -440,8 +440,8 @@ linkdiscovery_debug("\n\n\nPool host: " . $seedhost['hostname']. " deep: ". $CDP
 	$isHostScanned = db_fetch_cell( "SELECT scanned FROM plugin_linkdiscovery_hosts 
 	WHERE description='". $seedhost['hostname'] ."' OR hostname='".$seedhost['hostname'] ."'");
 	if( $isHostScanned == '1' ){
-linkdiscovery_debug( " hostname allready scanned: " . $seedhost['hostname'] . " scanned: ". $isHostScanned . 
-" from: " . $hostdiscovered[count($hostdiscovered)-1]."\n");
+linkdiscovery_debug( " hostname allready scanned: " . $seedhost['description'] . " scanned: ". $isHostScanned . 
+" from: " . $hostdiscovered[count($hostdiscovered)-1]['description']."\n");
 		return;
 	}
 	
