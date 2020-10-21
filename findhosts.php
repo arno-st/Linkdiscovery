@@ -566,7 +566,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$intfindex, $seedhost['snmp_version'], $seedhost['snmp_username'], $seedhost['snmp_password'], 
 	$seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'], 
 	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
-//linkdiscovery_debug("hostgetipcapa1: ". $seedhost['hostname']. " OID: " . $cdpdevicecapacities.".".$intfindex . " dump: " .$searchcapa. "\n");
+linkdiscovery_debug("hostgetipcapa1: ". $seedhost['description']. " OID: " . $cdpdevicecapacities.".".$intfindex . " dump: " .$searchcapa. "\n");
 
 	// look for the IP table 
 	$searchip = ld_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $cdpdeviceip.".".$intfindex, 
@@ -585,7 +585,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$ret['capa'] = $searchcapa;
 	$ret['type'] = trim($searchtype);
 
-//linkdiscovery_debug("seed: ". $seedhost['hostname']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".var_dump($searchcapa)." ip: ".var_dump($searchip). " type: ". $searchtype ."\n");
+//linkdiscovery_debug("seed: ". $seedhost['hostname']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " type: ". $searchtype ."\n");
 
 	return $ret;
 }
