@@ -59,3 +59,4 @@ pt the RRD file.
 1.3.6 Change the SNMP default setting, is taken from automation config instead of seed host, and if automation is not set, look via default config
 1.3.7 rename one field on the linkdiscovery DB, remove config for graph since it should be handle by automation
 1.3.8 correction in the way a host is added to IPAM or ClearPass when we receive a call from api_device_new
+1.3.9 Correction of polling time calculation

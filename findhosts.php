@@ -197,88 +197,35 @@ if ( file_exists( $runningfile ) && !$forcerun ) {
 	touch( $runningfile );
 }
 
+$time_based_collection_timming = read_config_option("linkdiscovery_base_time");
 
-if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
+$collection_timming = read_config_option("linkdiscovery_collection_timing");
+if ($collection_timming == 0 && !$forcerun) {
 	linkdiscovery_debug("Link Discovery Polling is set to disabled.\n");
 	if(!isset($debug)) {
 		unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
-		exit;
 	}
+	exit;
 }
 
 linkdiscovery_debug("Checking to determine if it's time to run.\n");
-$poller_interval = read_config_option("poller_interval");
-
-$seconds_offset = read_config_option("linkdiscovery_collection_timing") * 60;
-
-if ($forcerun == FALSE && $seconds_offset == 0) {
-	linkdiscovery_debug("FALSE not the right time\n");
-	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
-	exit;
-}
-
-
-$base_start_time = read_config_option("linkdiscovery_base_time");
 $last_run_time = read_config_option("linkdiscovery_last_run_time");
-$previous_base_start_time = read_config_option("linkdiscovery_prev_base_time");
+$last_run_date = date("Y-m-d",$last_run_time);
+$next_runtime = strtotime(date('Y-m-d H:i:s', (strtotime("$last_run_date $time_based_collection_timming")+$collection_timming)) );
 
-if ($base_start_time == '') {
-	linkdiscovery_debug("Base Starting Time is blank, using '12:00am'\n");
-	$base_start_time = '12:00am';
-}
+linkdiscovery_debug('last run: '.$last_run_time);
+linkdiscovery_debug('collection: '.$collection_timming);
+linkdiscovery_debug('next run: '.$next_runtime);
+linkdiscovery_debug('running in : '.($next_runtime-time()));
 
-$minutes = date("i", strtotime($base_start_time));
-$hourdate = date("Y-m-d H:$minutes:00");
-$hourtime = strtotime($hourdate);
-linkdiscovery_debug($hourdate . " " . $hourtime . "\n");
-
-/* see if the user desires a new start time */
-linkdiscovery_debug("Checking if user changed the start time\n");
-if (!empty($previous_base_start_time)) {
-	if ($base_start_time <> $previous_base_start_time) {
-		linkdiscovery_debug("User changed the start time from '$previous_base_start_time' to '$base_start_time'\n");
-		unset($last_run_time);
-		db_execute("DELETE FROM settings WHERE name='linkdiscovery_last_run_time'");
-	}
-}
-
-/* set to detect if the user cleared the time between polling cycles */
-db_execute("REPLACE INTO settings (name, value) VALUES ('linkdiscovery_prev_base_time', '$base_start_time')");
-
-/* determine the next start time */
-if (empty($last_run_time)) {
-	if ($current_time > strtotime($base_start_time)) {
-		/* if timer expired within a polling interval, then poll */
-		if (($current_time - $poller_interval) < strtotime($base_start_time)) {
-			$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
-		}else{
-			$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time) + $seconds_offset;
-		}
-	}else{
-		$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
-	}
-}else{
-	$next_run_time = $last_run_time + $seconds_offset;
-}
-$time_till_next_run = $next_run_time - $current_time;
-
-if ($time_till_next_run < 0 ) {
-	linkdiscovery_debug("The next run time has been determined to be NOW\n");
-}else{
-	linkdiscovery_debug("The next run time has been determined to be at   " . date("Y-m-d G:i:s", $next_run_time) . "\n");
-}
-
-if ($time_till_next_run > 0 && $forcerun == FALSE ) {
-	linkdiscovery_debug("not the right time\n");
+if (($next_runtime-time()) > 0 && $forcerun == FALSE ){
+	linkdiscovery_debug("The next run time has been determined to be at   " . date("Y-m-d H:i:s", $next_runtime) . "\n");
 	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	exit;
 }
 
-// check if findhost is allready running
-if ($forcerun) {
-	linkdiscovery_debug("Scanning has been forced\n");
-	db_execute("REPLACE INTO settings (name, value) VALUES ('linkdiscovery_last_run_time', '$hourtime')");
-}
+set_config_option('linkdiscovery_last_run_time', time());
+
 
 //****************************************************
 // read default domain
@@ -401,6 +348,8 @@ linkdiscovery_debug("Initial Seed host: " . $known_hosts['hostname'] . "\n" );
 linkdiscovery_save_host( $known_hosts['id'], $known_hosts );
 $noscanhost = explode( ",", read_config_option('linkdiscovery_no_scan'));
 
+linkdiscovery_debug('host snmp data:'.print_r($known_hosts, true) );
+
 // call the first time the CDP discovery
 CDP_Discovery($sidx, $known_hosts  );
 
@@ -421,7 +370,7 @@ function CDP_Discovery($CDPdeep, $seedhost ) {
 	global $cdpdevicename, $isSwitch, $isSwitch2, $isRouter, $isSRBridge, $isNexus, $isHost,  
 	$keepwifi, $isWifi, $keepphone, $isPhone, $hostdiscovered, $goodtogo, $noscanhost;
 	
-linkdiscovery_debug("\n\n\nPool host: " . $seedhost['hostname']. " deep: ". $CDPdeep ."\n");
+linkdiscovery_debug("Pool host: " . $seedhost['hostname']. " deep: ". $CDPdeep ."\n");
 
 	// check if the host is disabled, or on the disable list
 	$isDisabled = db_fetch_cell("SELECT disabled FROM host WHERE description='". $seedhost['hostname'] ."' 
@@ -469,6 +418,7 @@ linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$s
 		// loop through the list to find out which are switch and/or router
 		// start from the last, remove one to have 0 based for array usage
 		for( $nb=count($searchname)-1;$nb>=0;$nb-- ) {
+			linkdiscovery_debug("Doing searchname: ".$searchname[$nb]['value']);
 			$hostrecord_array = array();
 			$hostipcapa = array();
 			
@@ -508,6 +458,7 @@ linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$s
 				
 				// check witch SNMP version we gona use
 				$hostrecord_array = array_merge(checkSNMP($hostrecord_array), $hostrecord_array );
+				linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
 				
 linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostrecord_array['description']. 
 " nb: ". $nb ." capa: ".$hostipcapa['capa']." ip: ".$hostipcapa['ip']." goodtogo: ".$goodtogo . 
@@ -522,7 +473,7 @@ linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostr
 					cacti_log("linkdiscovery_save_data: no IP  useless: ". var_dump($hostrecord_array), false, "LINKDISCOVERY" );
 				} else {
 					linkdiscovery_save_data( $seedhost, $hostrecord_array, $canreaditfpeer );
-linkdiscovery_debug("End saved, next host on list:". $hostrecord_array['description']);
+linkdiscovery_debug("End saved");
 				}
 	
 				if (($CDPdeep > 0) ){
@@ -542,14 +493,15 @@ linkdiscovery_debug( "Same host prev: " . $hostdiscovered[count($hostdiscovered)
 			} else {
 linkdiscovery_debug( " dropped hostname: " . strtolower($searchname[$nb]['value']) . " capa: " .$hostipcapa['capa']. " ip: " . $hostipcapa['ip'] . " good: " . $goodtogo . "\n");
 			}
-		} // end finded host, go to next one
+		} // end searchname host, go to next one
 		
-linkdiscovery_debug("End pool: ".$seedhost['hostname']);
+linkdiscovery_debug("End pool on: ".$seedhost['hostname']);
 
 	} else linkdiscovery_debug( " Can't do snmp on hostname " . $seedhost['hostname'] . " from: " . (count($hostdiscovered)>1)?$hostdiscovered[count($hostdiscovered)-2]['hostname']:'' . "(".count($hostdiscovered).")\n");
 
-	// remove the last host scanned
+	// remove the last host scanned, and restore seedhost
 	array_pop($hostdiscovered);
+    $seedhost = (count($hostdiscovered)>0)?$hostdiscovered[count($hostdiscovered)-1]:'';
 	DisplayStack();
 }
 
@@ -566,14 +518,14 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$intfindex, $seedhost['snmp_version'], $seedhost['snmp_username'], $seedhost['snmp_password'], 
 	$seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'], 
 	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
-linkdiscovery_debug("hostgetipcapa1: ". $seedhost['description']. " OID: " . $cdpdevicecapacities.".".$intfindex . " dump: " .$searchcapa. "\n");
+//linkdiscovery_debug("hostgetipcapa1: ". $seedhost['description']. " OID: " . $cdpdevicecapacities.".".$intfindex . " dump: " .$searchcapa. "\n");
 
 	// look for the IP table 
 	$searchip = ld_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $cdpdeviceip.".".$intfindex, 
 	$seedhost['snmp_version'], $seedhost['snmp_username'], $seedhost['snmp_password'], 
 	$seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'], 
 	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
-//linkdiscovery_debug("hostgetipcapa2: ". $seedhost['hostname']. " OID: " . $cdpdeviceip.".".$intfindex ." ip: " .$searchip. "\n");
+//linkdiscovery_debug("hostgetipcapa2: ". $seedhost['description']. " OID: " . $cdpdeviceip.".".$intfindex ." ip: " .$searchip. "\n");
 
 	// look for the equipement type
 	$searchtype = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $cdpremotetype.".".
@@ -585,7 +537,7 @@ linkdiscovery_debug("hostgetipcapa1: ". $seedhost['description']. " OID: " . $cd
 	$ret['capa'] = $searchcapa;
 	$ret['type'] = trim($searchtype);
 
-//linkdiscovery_debug("seed: ". $seedhost['hostname']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " type: ". $searchtype ."\n");
+//linkdiscovery_debug("seed: ". $seedhost['description']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " type: ". $searchtype ."\n");
 
 	return $ret;
 }
@@ -606,7 +558,7 @@ function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
 
 	// sub-index id
 	$cdpsnmpsubitfidx = substr( $itfidx, strlen($cdpinterfacename.$cdpsnmpitfidx)+2 );
-//linkdiscovery_debug("  Get interface seedhost: ".$seedhost['hostname']." interface: ".$itfidx." hostrec: ".var_dump($hostrecord_array)."\n" );
+linkdiscovery_debug("  Get interface seedhost: ".$seedhost['hostname']." interface: ".$itfidx." hostrec: ".print_r($hostrecord_array, true)."\n" );
 
 	// interface array index of the : source, dest
 	$itfidxarray['source'] = $cdpsnmpitfidx;
@@ -620,28 +572,28 @@ function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
 
 // interface name on dest side but taken from CDP
 	$itfnamearray['dest'] = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], 
-	$cdpremoteitfname.".".$cdpsnmpitfidx.".".$cdpsnmpsubitfidx, $seedhost['snmp_version'], 
-	$seedhost['snmp_username'], $seedhost['snmp_password'], $seedhost['snmp_auth_protocol'],
-	$seedhost['snmp_priv_passphrase'], $seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
+	$cdpremoteitfname.".".$cdpsnmpitfidx.".".$cdpsnmpsubitfidx, $seedhost['snmp_version'], $seedhost['snmp_username'], 
+	$seedhost['snmp_password'], $seedhost['snmp_auth_protocol'],$seedhost['snmp_priv_passphrase'],
+	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
 
 	// interface source type
-	$itftype = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $snmpiftype.".".$cdpsnmpitfidx, 
-	$seedhost['snmp_version'], $seedhost['snmp_username'], $seedhost['snmp_password'], 
-	$seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'], $seedhost['snmp_priv_protocol'], 
-	$seedhost['snmp_context'] ); 
+	$itftype = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'],
+	$snmpiftype.".".$cdpsnmpitfidx, $seedhost['snmp_version'], $seedhost['snmp_username'], 
+	$seedhost['snmp_password'], $seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'],
+	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
 
 	// pool peer host for interface description, if posible (no phone, no AP, no unpollable device
 	if( $goodtogo != $isWifi && $goodtogo != $isPhone 
 		&& ($itftype == $intftypeeth || $itftype == $intftypetunnel ) 
 		&& $hostrecord_array['hostname'] !== '' ) {
 			
-//linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ." type: ".$itftype."\n");
+linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ." type: ".$itftype."\n");
 
 		// Get intf index on the destination host, based on the name find on the seedhost
 		$itfdstarray = cacti_snmp_walk( $hostrecord_array['hostname'], $hostrecord_array['snmp_community'], 
-		$snmpifdescr, $hostrecord_array['snmp_version'], $hostrecord_array['snmp_username'], $hostrecord_array['snmp_password'], 
-		$hostrecord_array['snmp_auth_protocol'], $hostrecord_array['snmp_priv_passphrase'], $hostrecord_array['snmp_priv_protocol'], 
-		$hostrecord_array['snmp_context'] ); 
+		$snmpifdescr, $hostrecord_array['snmp_version'], $hostrecord_array['snmp_username'],
+		$hostrecord_array['snmp_password'], $hostrecord_array['snmp_auth_protocol'], $hostrecord_array['snmp_priv_passphrase'], 
+		$hostrecord_array['snmp_priv_protocol'], $hostrecord_array['snmp_context'] ); 
 
 		if( $itfdstarray ) {
 			foreach( $itfdstarray as $itfdst ) {
@@ -1029,7 +981,7 @@ linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$snmp_erro
 
 	// lastly push host-specific information to our data sources, that will trigger the automation process
 	push_out_host($seedhostid,0);
-linkdiscovery_debug("end push out: " .$seedhostid . "\n" );
+linkdiscovery_debug("end, trigger push out: " .$seedhostid . "\n" );
 }
 
 function buildGraph( $snmp_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array ) {
@@ -1251,15 +1203,14 @@ function checkSNMP( $hostrecord_array ){
 	global $snmp_arrays, $snmpsysdescr, $default_snmp_array;
 
 	foreach( $snmp_arrays as $snmp_array ) {
-	
 		$checksnmp = cacti_snmp_walk( $hostrecord_array['hostname'], $snmp_array['snmp_community'], $snmpsysdescr, 
 		$snmp_array['snmp_version'], $snmp_array['snmp_username'], $snmp_array['snmp_password'], 
 		$snmp_array['snmp_auth_protocol'], $snmp_array['snmp_priv_passphrase'], 
 		$snmp_array['snmp_priv_protocol'], $snmp_array['snmp_context'], $snmp_array['snmp_engine_id'] );
 
-//		linkdiscovery_debug("Check snmp :". $snmp_array['snmp_version'].' commmunity: '.$snmp_array['snmp_community']. " on host: ". $hostrecord_array['description'].' status: '.empty($checksnmp) );
+//		linkdiscovery_debug("Check snmp :". print_r($snmp_array, true ). " on host: ". $hostrecord_array['description'] );
 
-		if( $checksnmp ) {
+		if( !empty($checksnmp) ) {
 			return ($snmp_array + $default_snmp_array);
 		}
 	}

@@ -162,7 +162,7 @@ function linkdiscovery_config_settings () {
 			),
 		"linkdiscovery_base_time" => array(
 			"friendly_name" => "Start Time for Polling",
-			"description" => "When would you like the first polling to take place.  All future polling times will be based upon this start time.  A good example would be 12:00AM.",
+			"description" => "When would you like the first polling to take place.  A good example would be 12:00AM.",
 			"default" => "12:00am",
 			"method" => "textbox",
 			"max_length" => "10"
@@ -300,14 +300,10 @@ function linkdiscovery_config_arrays () {
 
 	$linkdiscovery_poller_frequencies = array(
 		"0" => "Disabled",
-		"240" => "Every 4 Hours",
-		"360" => "Every 6 Hours",
-		"480" => "Every 8 Hours",
-		"720" => "Every 12 Hours",
-		"1440" => "Every Day",
-		"10080" => "Every Week",
-		"20160" => "Every 2 Weeks",
-		"40320" => "Every 4 Weeks"
+		"86400" => "Every Day",
+		"604800" => "Every Week",
+		"1209600" => "Every 2 Weeks",
+		"2419200" => "Every 4 Weeks"
 		);
 
 
@@ -382,19 +378,10 @@ function linkdiscovery_poller_bottom () {
 	include_once($config['library_path'] . '/poller.php');
 	include_once($config["library_path"] . "/database.php");
 
-	if (read_config_option("linkdiscovery_collection_timing") == "0")
+	if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
 		return;
-
-	$t = read_config_option("linkdiscovery_last_poll");
-
-	/* Check for the polling interval, only valid with the Multipoller patch */
-	$poller_interval = read_config_option("poller_interval");
-	if (!isset($poller_interval)) {
-		$poller_interval = 300;
 	}
-
-	if ($t != '' && (time() - $t < $poller_interval))
-		return;
+	link_log('Start linkdiscovery setup');
 
 	$command_string = trim(read_config_option("path_php_binary"));
 
@@ -404,13 +391,6 @@ function linkdiscovery_poller_bottom () {
 	$extra_args = ' -q ' . $config['base_path'] . '/plugins/linkdiscovery/findhosts.php';
 
 	exec_background($command_string, $extra_args);
-	
-	if ($t == "")
-		$sql = "INSERT INTO settings VALUES ('linkdiscovery_last_poll','" . time() . "')";
-	else
-		$sql = "UPDATE settings SET value = '" . time() . "' where name = 'linkdiscovery_last_poll'";
-	$result = db_execute($sql);
-
 }
 
 function linkdiscovery_get_tree_headers($type) {
@@ -877,8 +857,8 @@ function linkdiscovery_api_device_new( $host_id ) {
 
 	$useipam = read_config_option("linkdiscovery_useipam");
 	
-	// if device is disabled, don't save on IPAM or other
-	if ($host_id['disabled'] == 'on') {
+	// if device is disabled, or snmp has nothing, don't save on IPAM or other
+	if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
 		return $host_id;
 	}
 	
@@ -1062,7 +1042,13 @@ function update_aruba_device( $host_id, $token ) {
 
     $desc = $host_id['description'];
     $name = $host_id['description'];
-    if( $host_id['snmp_version'] == '2' ) {
+	$snmp_username =  '';
+	$snmp_auth_protocol = ''; 
+	$snmp_auth_key = '';
+	$snmp_priv_protocol = '';
+	$snmp_priv_passphrase = '';
+    $snmp_sec_level = '';
+	if( $host_id['snmp_version'] == '2' ) {
     	$snmp_version = "V2C";
     } else if( $host_id['snmp_version'] == '3' ) {
 		$snmp_version = "V3";
