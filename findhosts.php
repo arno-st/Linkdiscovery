@@ -353,8 +353,8 @@ linkdiscovery_debug('host snmp data:'.print_r($known_hosts, true) );
 // call the first time the CDP discovery
 CDP_Discovery($sidx, $known_hosts  );
 
+cacti_log('End of process linkdiscovery', false, 'LINKDISCOVERY' );
 // End of process
-linkdiscovery_debug("\n\n\nEnd of process\n\n\n" );
 unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 
 function DisplayStack(){
@@ -370,7 +370,7 @@ function CDP_Discovery($CDPdeep, $seedhost ) {
 	global $cdpdevicename, $isSwitch, $isSwitch2, $isRouter, $isSRBridge, $isNexus, $isHost,  
 	$keepwifi, $isWifi, $keepphone, $isPhone, $hostdiscovered, $goodtogo, $noscanhost;
 	
-linkdiscovery_debug("Pool host: " . $seedhost['hostname']. " deep: ". $CDPdeep ."\n");
+cacti_log("Pool host: " . $seedhost['hostname']. " deep: ". $CDPdeep, true, 'LINKDISCOVERY' );
 
 	// check if the host is disabled, or on the disable list
 	$isDisabled = db_fetch_cell("SELECT disabled FROM host WHERE description='". $seedhost['hostname'] ."' 
@@ -457,9 +457,10 @@ linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$s
 				$hostrecord_array['type'] = $hostipcapa['type'];
 				
 				// check witch SNMP version we gona use
-				$hostrecord_array = array_merge(checkSNMP($hostrecord_array), $hostrecord_array );
-				linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
-				
+				if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
+					$hostrecord_array = array_merge(checkSNMP($hostrecord_array), $hostrecord_array );
+					linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
+				}
 linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostrecord_array['description']. 
 " nb: ". $nb ." capa: ".$hostipcapa['capa']." ip: ".$hostipcapa['ip']." goodtogo: ".$goodtogo . 
 " capacities: " .$CDPcapacities . " from :" .$seedhost['description']. 
@@ -470,7 +471,7 @@ linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostr
 
 				// save peerhost and interface
 				if ( $hostrecord_array['hostname'] == '' ) {
-					cacti_log("linkdiscovery_save_data: no IP  useless: ". var_dump($hostrecord_array), false, "LINKDISCOVERY" );
+					cacti_log("linkdiscovery_save_data: no IP  useless: ". print_r($hostrecord_array, true), false, "LINKDISCOVERY" );
 				} else {
 					linkdiscovery_save_data( $seedhost, $hostrecord_array, $canreaditfpeer );
 linkdiscovery_debug("End saved");
