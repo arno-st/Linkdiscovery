@@ -329,9 +329,9 @@ if ($sub_tree_id <> 0)
 		api_tree_delete_node_content($tree_id, 0 );
 }
 
-// remove the truncate function ,so the table is still reflecting all ink discovered, and just updated
-db_execute("truncate table plugin_linkdiscovery_hosts");
-//db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='0'"); // clear the scanned field
+// remove the truncate function ,so the table is still reflecting all link discovered, and just updated
+//db_execute("truncate table plugin_linkdiscovery_hosts");
+db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='0'"); // clear the scanned field
 db_execute("truncate table plugin_linkdiscovery_intf");
 
 // Seed the relevant arrays with known information.
@@ -368,9 +368,9 @@ function DisplayStack(){
 //**********************
 function CDP_Discovery($CDPdeep, $seedhost ) {
 	global $cdpdevicename, $isSwitch, $isSwitch2, $isRouter, $isSRBridge, $isNexus, $isHost,  
-	$keepwifi, $isWifi, $keepphone, $isPhone, $hostdiscovered, $goodtogo, $noscanhost;
+	$keepwifi, $isWifi, $keepphone, $isPhone, $hostdiscovered, $goodtogo, $noscanhost, $default_snmp_array;
 	
-cacti_log("Pool host: " . $seedhost['hostname']. " deep: ". $CDPdeep, true, 'LINKDISCOVERY' );
+linkdiscovery_debug("Pool host: " . $seedhost['description']. " deep: ". $CDPdeep );
 
 	// check if the host is disabled, or on the disable list
 	$isDisabled = db_fetch_cell("SELECT disabled FROM host WHERE description='". $seedhost['hostname'] ."' 
@@ -460,7 +460,10 @@ linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$s
 				if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
 					$hostrecord_array = array_merge(checkSNMP($hostrecord_array), $hostrecord_array );
 					linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
+				} else { // otherwise default snmp value
+					$hostrecord_array = array_merge($default_snmp_array, $hostrecord_array );
 				}
+				
 linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostrecord_array['description']. 
 " nb: ". $nb ." capa: ".$hostipcapa['capa']." ip: ".$hostipcapa['ip']." goodtogo: ".$goodtogo . 
 " capacities: " .$CDPcapacities . " from :" .$seedhost['description']. 
@@ -662,6 +665,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			}
 			$hostrecord_array["host_template_id"] = $host_template['host_template'];
 		}
+linkdiscovery_debug($hostrecord_array['description'] );
 
 		$new_hostid = api_device_save( '0', $hostrecord_array['host_template_id'], $hostrecord_array['description'], 
 		$hostrecord_array['hostname'], $hostrecord_array['snmp_community'], $hostrecord_array['snmp_version'], 
@@ -704,10 +708,12 @@ $hostrecord_array["host_template_id"]."\n");
 		}
 	}
 	// save the type and serial number to the new host's record
+	// if device can snmp, do a snmp search. otherwise cdp will be fine
 	if( $extenddb && !empty($hostrecord_array['hostname']) ) {
 		// get the serial number and type
 		if(  !empty($hostrecord_array['hostname']) ) {
-			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
+//			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
+			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], " " ) ) );
 			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
 		}
 		if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
@@ -729,10 +735,12 @@ linkdiscovery_debug(" site_id2: ".$site_id."\n");
 				db_execute("update host set site_id=". $site_id . " where id=" . $new_hostid );
 			}
 		}
-
 	}
 
-	linkdiscovery_save_host( $new_hostid, $hostrecord_array );
+	// if it's a phone,a Wifi or an ureachable snmp device don't save it to linkdiscovery table for scan
+	if( $goodtogo != $isWifi && $goodtogo != $isPhone && $canpeeritf ) {
+		linkdiscovery_save_host( $new_hostid, $hostrecord_array );
+	}
 	
 	// save the source host
 	$seedhostid = db_fetch_cell("SELECT id FROM host where description='". $seedhost['description'] ."' OR hostname='".$seedhost['hostname']. "'" );
@@ -775,24 +783,15 @@ linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['sourc
 //**********************
 // save host on the linkdiscovery table
 function linkdiscovery_save_host( $hostid, $hostrecord_array, $scanned='0' ){
-	
+
 	$hostexist = db_fetch_cell("SELECT id from plugin_linkdiscovery_hosts WHERE hostname='".$hostrecord_array['hostname']."' OR description='".$hostrecord_array['description']."'");
 	if( $hostexist == 0 ) {
 		// save it to the discovery table for later use
-		$ret = db_execute("INSERT INTO plugin_linkdiscovery_hosts (id, host_template_id, description, hostname, snmp_community, snmp_version, snmp_username, snmp_password, snmp_auth_protocol, snmp_priv_passphrase, snmp_priv_protocol, snmp_context, scanned ) 
+		$ret = db_execute("INSERT INTO plugin_linkdiscovery_hosts (id, description, hostname, scanned ) 
 				VALUES ('"
 		. $hostid . "', '"
-		. $hostrecord_array['host_template_id'] . "', '"
 		. $hostrecord_array['description'] . "', '"
 		. $hostrecord_array['hostname'] . "', '"
-		. $hostrecord_array['snmp_community'] . "', '"
-		. $hostrecord_array['snmp_version'] . "', '"
-		. $hostrecord_array['snmp_username'] . "', '"
-		. $hostrecord_array['snmp_password'] . "', '"
-		. $hostrecord_array['snmp_auth_protocol'] . "', '"
-		. $hostrecord_array['snmp_priv_passphrase'] . "', '"
-		. $hostrecord_array['snmp_priv_protocol'] . "', '"
-		. $hostrecord_array['snmp_context'] . "', '"
 		. $scanned . "')");
 
 		linkdiscovery_debug("Saved Host to plugin_linkdiscovery_hosts: " . $hostrecord_array['description'] ." hostname: " . $hostrecord_array['hostname']." res: ".$ret."\n" );

@@ -90,6 +90,18 @@ function linkdiscovery_check_upgrade() {
 			db_execute("ALTER TABLE `plugin_linkdiscovery_hosts` CHANGE `community` `snmp_community` VARCHAR(100);");
 			link_log('new: '.$current .' old:'.$old);
 		}
+		if( $old < '1.4.0' ) {
+			db_execute("ALTER TABLE `plugin_linkdiscovery_hosts` 
+			DROP COLUMN `snmp_community`,
+			DROP COLUMN `snmp_priv_protocol`,
+			DROP COLUMN `snmp_priv_passphrase`,
+			DROP COLUMN `snmp_auth_protocol`,
+			DROP COLUMN `snmp_password`,
+			DROP COLUMN `snmp_username`,
+			DROP COLUMN `snmp_version`,
+			DROP COLUMN `snmp_context`,
+			DROP COLUMN `host_template_id`;");
+		}
 	}
 }
 
@@ -341,17 +353,8 @@ function linkdiscovery_setup_table () {
 
 	$data = array();
 	$data['columns'][] = array('name' => 'id', 'type' => 'mediumint(8)', 'NULL' => false, 'default' => '0');
-	$data['columns'][] = array('name' => 'host_template_id', 'type' => 'mediumint(8)', 'NULL' => false, 'default' => '0');
 	$data['columns'][] = array('name' => 'description', 'type' => 'varchar(150)', 'NULL' => false, 'default' => '');
 	$data['columns'][] = array('name' => 'hostname', 'type' => 'varchar(250)', 'NULL' => true);
-	$data['columns'][] = array('name' => 'snmp_community', 'type' => 'varchar(100)', 'NULL' => false, 'default' => '');
-	$data['columns'][] = array('name' => 'snmp_version', 'type' => 'tinyint(1)', 'unsigned' => 'unsigned', 'NULL' => false, 'default' => '1');
-	$data['columns'][] = array('name' => 'snmp_username', 'type' => 'varchar(50)', 'NULL' => true);
-	$data['columns'][] = array('name' => 'snmp_password', 'type' => 'varchar(50)', 'NULL' => true);
-	$data['columns'][] = array('name' => 'snmp_auth_protocol', 'type' => 'char(5)', 'default' =>  '');
-	$data['columns'][] = array('name' => 'snmp_priv_passphrase', 'type' => 'varchar(200)', 'default' => '');
-	$data['columns'][] = array('name' => 'snmp_priv_protocol', 'type' => 'char(6)', 'default' => '');
-	$data['columns'][] = array('name' => 'snmp_context', 'type' => 'varchar(64)', 'default' => '');
 	$data['columns'][] = array('name' => 'scanned', 'type' => 'tinyint(1)', 'default' => '0');
 	$data['primary'] = 'description';
 	$data['keys'][] = array('name' => 'hostname', 'columns' => 'hostname');
@@ -457,362 +460,6 @@ function linkdiscovery_utilities_action ($action) {
 		top_header();
 		utilities();
 		bottom_footer();
-	} elseif ($action == 'linkdiscovery_count') {
-		top_header();
-
-	/* ================= input validation and session storage ================= */
-		$filters = array(
-			'rows' => array(
-				'filter' => FILTER_VALIDATE_INT,
-				'pageset' => true,
-				'default' => '-1'
-			),
-			'page' => array(
-				'filter' => FILTER_VALIDATE_INT,
-				'default' => '1'
-			),
-			'filter' => array(
-				'filter' => FILTER_DEFAULT,
-				'pageset' => true,
-				'default' => ''
-			),
-			'sort_column' => array(
-				'filter' => FILTER_CALLBACK,
-				'default' => 'occurence',
-				'options' => array('options' => 'sanitize_search_string')
-			),
-			'sort_direction' => array(
-				'filter' => FILTER_CALLBACK,
-				'default' => 'ASC',
-				'options' => array('options' => 'sanitize_search_string')
-			)
-		);
-
-		validate_store_request_vars($filters, 'sess_linkdcount');
-		/* ================= input validation ================= */
-
-		if (get_request_var('rows') == '-1') {
-			$rows = read_config_option('num_rows_table');
-		} else {
-			$rows = get_request_var('rows');
-		}
-
-		$refresh['seconds'] = '300';
-		$refresh['page']    = 'utilities.php?action=linkdiscovery_count&header=false';
-		$refresh['logout']  = 'false';
-
-		set_page_refresh($refresh);
-
-		?>
-		<script type="text/javascript">
-
-		function applyFilter() {
-			strURL  = 'utilities.php?action=linkdiscovery_count';
-			strURL += '&rows=' + $('#rows').val();
-			strURL += '&filter=' + $('#filter').val();
-			strURL += '&header=false';
-			loadPageNoHeader(strURL);
-		}
-
-		function clearFilter() {
-			strURL = urlPath+'utilities.php?action=linkdiscovery_count&clear=1&header=false';
-			loadPageNoHeader(strURL);
-		}
-		$(function() {
-			$('#refresh').click(function() {
-				applyFilter();
-			});
-
-			$('#clear').click(function() {
-				clearFilter();
-			});
-
-			$('#count_type').submit(function(event) {
-				event.preventDefault();
-				applyFilter();
-			});
-		});
-		</script>
-		<?php
-		html_start_box(__('LinkDiscovery Device Type'), '100%', '', '3', 'center', '');
-		?>
-		<tr class='even noprint'>
-			<td>
-			<form id='count_type' action='utilities.php'>
-				<table class='filterTable'>
-					<tr>
-						<td>
-							<?php print __('Search');?>
-						</td>
-						<td>
-							<input type='text' class='ui-state-default ui-corner-all' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
-						</td>
-						<td>
-							<?php print __('Rows');?>
-						</td>
-						<td>
-							<select id='rows' onChange='applyFilter()'>
-								<option value='-1'<?php print (get_request_var('rows') == '-1' ? ' selected>':'>') . __('Default');?></option>
-								<?php
-								if (cacti_sizeof($item_rows)) {
-									foreach ($item_rows as $key => $value) {
-										print "<option value='" . $key . "'"; if (get_request_var('rows') == $key) { print ' selected'; } print '>' . html_escape($value) . "</option>\n";
-									}
-								}
-								?>
-							</select>
-						</td>
-						<td>
-							<span>
-								<input type='submit' class='ui-button ui-corner-all ui-widget' id='refresh' value='<?php print __esc_x('Button: use filter settings', 'Go');?>' title='<?php print __esc('Set/Refresh Filters');?>'>
-								<input type='button' class='ui-button ui-corner-all ui-widget' id='clear' value='<?php print __esc_x('Button: reset filter settings', 'Clear');?>' title='<?php print __esc('Clear Filters');?>'>
-							</span>
-						</td>
-					</tr>
-				</table>
-				<input type='hidden' name='action' value='linkdiscovery_count'>
-			</form>
-			</td>
-		</tr>
-		<?php
-		html_end_box();
-
-	// sql query: SELECT type,COUNT(1) as occurence FROM host where type LIKE "C9200" GROUP BY type ORDER BY occurence
-		$sql_where = '';
-
-	/* filter by search string */
-		if (get_request_var('filter') != '') {
-			$sql_where .= ' WHERE type LIKE ' . db_qstr('%' . get_request_var('filter') . '%');
-		}
-
-		$total_rows = db_fetch_cell("SELECT COUNT(DISTINCT(type)) FROM host". $sql_where);
-		
-		$sql_where .= ' GROUP BY type ';
-
-		$linkdiscovery_count_sql = "SELECT type,COUNT(1) as occurence FROM host 
-			$sql_where 
-			ORDER BY " . get_request_var('sort_column') . ' ' . get_request_var('sort_direction') . '
-			LIMIT ' . ($rows*(get_request_var('page')-1)) . ',' . $rows;
-
-		$linkdiscovery_count = db_fetch_assoc($linkdiscovery_count_sql);
-
-	/* generate page list */
-		$nav = html_nav_bar('utilities.php?action=linkdiscovery_count&filter=' . get_request_var('filter'), MAX_DISPLAY_PAGES, get_request_var('page'), $rows, $total_rows, 11, __('Entries'), 'page', 'main');
-
-		print $nav;
-
-		html_start_box('', '100%', '', '3', 'center', '');
-
-		$display_text = array(
-		'type' => array(__('Device Type'), 'ASC'),
-		'occurence' => array(__('Number of Occurence'), 'ASC'));
-
-		html_header_sort($display_text, get_request_var('sort_column'), get_request_var('sort_direction'), 1, 'utilities.php?action=linkdiscovery_count');
-
-		if (cacti_sizeof($linkdiscovery_count)) {
-			foreach ($linkdiscovery_count as $item) {
-				if( empty($item['type']) ) $item['type'] = 'empty';
-				form_alternate_row('line' . $item['type'], false);
-				form_selectable_cell(filter_value($item['type'], get_request_var('filter'), 'utilities.php?action=linkdiscovery_display&sort_column=description&model=' . $item['type']), $item['type']);
-				form_selectable_cell(filter_value($item['occurence'], get_request_var('filter')), $item['occurence']);
-				form_end_row();
-			}
-		}
-
-		html_end_box();
-		if (cacti_sizeof($linkdiscovery_count)) {
-			print $nav;
-		}
-
-		?>
-		<script type='text/javascript'>
-			$('.tooltip').tooltip({
-				track: true,
-				show: 250,
-				hide: 250,
-				position: { collision: "flipfit" },
-				content: function() { return $(this).attr('title'); }
-			});
-		</script>
-	<?php
-	} elseif ($action == 'linkdiscovery_display') {
-		top_header();
-// Show list of a specific type
-	/* ================= input validation and session storage ================= */
-		$filters = array(
-			'rows' => array(
-				'filter' => FILTER_VALIDATE_INT,
-				'pageset' => true,
-				'default' => '-1'
-			),
-			'page' => array(
-				'filter' => FILTER_VALIDATE_INT,
-				'default' => '1'
-			),
-			'model' => array(
-				'filter' => FILTER_DEFAULT,
-			),
-			'filter' => array(
-				'filter' => FILTER_DEFAULT,
-				'pageset' => true,
-				'default' => ''
-			),
-			'sort_column' => array(
-				'filter' => FILTER_CALLBACK,
-				'default' => 'hostname',
-				'options' => array('options' => 'sanitize_search_string')
-			),
-			'sort_direction' => array(
-				'filter' => FILTER_CALLBACK,
-				'default' => 'ASC',
-				'options' => array('options' => 'sanitize_search_string')
-			)
-		);
-		validate_store_request_vars($filters, 'sess_linkddisp');
-		/* ================= input validation ================= */
-
-		if (get_request_var('rows') == '-1') {
-			$rows = read_config_option('num_rows_table');
-		} else {
-			$rows = get_request_var('rows');
-		}
-		if( get_request_var('model') == 'empty' ) set_request_var('model', '');
-
-		$model = get_request_var('model');
-		$refresh['seconds'] = '300';
-		$refresh['page']    = 'utilities.php?action=linkdiscovery_display&header=false&model='.$model;
-		$refresh['logout']  = 'false';
-
-		set_page_refresh($refresh);
-
-		?>
-		<script type="text/javascript">
-		function applyFilter() {
-			strURL  = 'utilities.php?action=linkdiscovery_display';
-			strURL += '&model=' +$('#model').val();
-			strURL += '&rows=' + $('#rows').val();
-			strURL += '&filter=' + $('#filter').val();
-			strURL += '&header=false';
-			loadPageNoHeader(strURL);
-		}
-
-		function clearFilter() {
-			strURL = urlPath+'utilities.php?action=linkdiscovery_count&clear=1&header=false';
-			loadPageNoHeader(strURL);
-		}
-		$(function() {
-			$('#refresh').click(function() {
-				applyFilter();
-			});
-
-			$('#clear').click(function() {
-				clearFilter();
-			});
-
-			$('#display_type').submit(function(event) {
-				event.preventDefault();
-				applyFilter();
-			});
-		});
-		</script>
-		<?php
-		html_start_box(__('LinkDiscovery Device Type'), '100%', '', '3', 'center', '');
-		?>
-		<tr class='even noprint'>
-		<id='model' value=<?php print (get_request_var('model'))?> >
-			<td>
-			<form id='display_type' action='utilities.php'>
-				<table class='filterTable'>
-					<tr>
-						<td>
-							<?php print __('Search');?>
-						</td>
-						<td>
-							<input type='text' class='ui-state-default ui-corner-all' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
-						</td>
-						<td>
-							<?php print __('Rows');?>
-						</td>
-						<td>
-							<select id='rows' onChange='applyFilter()'>
-								<option value='-1'<?php print (get_request_var('rows') == '-1' ? ' selected>':'>') . __('Default');?></option>
-								<?php
-								if (cacti_sizeof($item_rows)) {
-									foreach ($item_rows as $key => $value) {
-										print "<option value='" . $key . "'"; if (get_request_var('rows') == $key) { print ' selected'; } print '>' . html_escape($value) . "</option>\n";
-									}
-								}
-								?>
-							</select>
-						</td>
-						<td>
-							<span>
-								<input type='submit' class='ui-button ui-corner-all ui-widget' id='refresh' value='<?php print __esc_x('Button: use filter settings', 'Go');?>' title='<?php print __esc('Set/Refresh Filters');?>'>
-								<input type='button' class='ui-button ui-corner-all ui-widget' id='clear' value='<?php print __esc_x('Button: reset filter settings', 'Clear');?>' title='<?php print __esc('Clear Filters');?>'>
-							</span>
-						</td>
-					</tr>
-				</table>
-				<input type='hidden' name='action' value='linkdiscovery_display'>
-			</form>
-			</td>
-		</tr>
-		<?php
-		html_end_box();
-
-		$sql_where = '';
-
-	/* filter by search string */
-		$sql_where .= ' WHERE type LIKE ' . db_qstr('' . get_request_var('model') . '');
-
-		$total_rows = db_fetch_cell("SELECT COUNT(*) FROM host ".$sql_where);
-		
-		$linkdiscovery_display_sql = "SELECT id, hostname, description FROM host
-			$sql_where
-			ORDER BY " . get_request_var('sort_column') . ' ' . get_request_var('sort_direction') . '
-			LIMIT ' . ($rows*(get_request_var('page')-1)) . ',' . $rows;
-
-		$linkdiscovery_display = db_fetch_assoc($linkdiscovery_display_sql);
-
-	/* generate page list */
-		$nav = html_nav_bar('utilities.php?action=linkdiscovery_display&filter=' . get_request_var('filter').'&model='.get_request_var('model'), MAX_DISPLAY_PAGES, get_request_var('page'), $rows, $total_rows, 11, __('Entries'), 'page', 'main');
-
-		print $nav;
-
-		$display_text = array(
-		'hostname' => array(__('Device Hostname'), 'ASC'),
-		'description' => array(__('Device Description'), 'ASC'));
-
-		html_start_box('', '100%', '', '3', 'center', '');
-
-		html_header_sort($display_text, get_request_var('sort_column'), get_request_var('sort_direction'), 1, 'utilities.php?action=linkdiscovery_display');
-
-
-		if (cacti_sizeof($linkdiscovery_display)) {
-			foreach ($linkdiscovery_display as $item) {
-				form_alternate_row('line' . $item['hostname'], false);
-				form_selectable_cell(filter_value($item['hostname'], get_request_var('filter'), 'host.php?action=edit&id=' . $item['id']), $item['id']);
-				form_selectable_cell(filter_value($item['description'], get_request_var('filter'), 'host.php?action=edit&id=' . $item['id']), $item['id']);
-				form_end_row();
-			}
-		}
-
-		html_end_box();
-		if (cacti_sizeof($linkdiscovery_display)) {
-			print $nav;
-		}
-
-		?>
-		<script type='text/javascript'>
-			$('.tooltip').tooltip({
-				track: true,
-				show: 250,
-				hide: 250,
-				position: { collision: "flipfit" },
-				content: function() { return $(this).attr('title'); }
-			});
-		</script>
-	<?php
 	}
 	return $action;
 }
@@ -824,10 +471,6 @@ function linkdiscovery_utilities_list () {
 	form_alternate_row();
 		print "<td class='nowrap' style='vertical-align:top;'> <a class='hyperLink' href='utilities.php?action=linkdiscovery_clear'>Clear LinkDiscovery Results</a></td>\n";
 		print "<td>This will clear the results from the Link Discovery data.</td>\n";
-	form_end_row();
-	form_alternate_row();
-		print "<td class='nowrap' style='vertical-align:top;'> <a class='hyperLink' href='utilities.php?action=linkdiscovery_count'>LinkDiscovery type count</a></td>\n";
-		print "<td>Count the number of each device type.</td>\n";
 	form_end_row();
 }
 
