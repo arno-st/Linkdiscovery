@@ -865,8 +865,6 @@ function add_aruba_device( $host_id, $token ) {
 function remove_aruba_device( $host_id ) {
 	$arubaurl = read_config_option("linkdiscovery_aruba_server");
 	
-link_log("aruba remove:".var_dump($host_id) );
-
 	$token = aruba_get_oauth();
 	if( ! $token ) {
 		return;
