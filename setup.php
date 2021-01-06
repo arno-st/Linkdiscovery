@@ -497,11 +497,20 @@ function linkdiscovery_device_remove( $hosts_id ){
 
 function linkdiscovery_api_device_new( $host_id ) {
 	cacti_log('Enter Linkdiscovery', false, 'LINKDISCOVERY' );
-
+    cacti_log('Enter IPAM', false, 'LINKDISCOVERY' );
+	
 	$useipam = read_config_option("linkdiscovery_useipam");
 	
 	// if device is disabled, or snmp has nothing, don't save on IPAM or other
-	if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
+	if( array_key_exists('disabled', $host_id) && array_key_exists('snmp_version', $host_id) ) {
+		if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
+			cacti_log('don t use IPAM: '.$host_id['description'], false, 'LINKDISCOVERY' );
+			link_log('don t use IPAM: '.$host_id['description'] );
+			return $host_id;
+		}
+	} else {
+			cacti_log('field don t exist: '.$host_id['description'], false, 'LINKDISCOVERY' );
+			link_log('field don t exist: '.$host_id['description']);
 		return $host_id;
 	}
 	
@@ -509,8 +518,13 @@ function linkdiscovery_api_device_new( $host_id ) {
 		$ipamurl = read_config_option("linkdiscovery_ipam_url");
 		//$host_id["hostname"] do a nslook if necessary
 		$ip = gethostbyname($host_id["hostname"]);
-		//https://ipam.lausanne.ch/rpc/iplocator_ng_import_device.php?hostaddr=$host_id&site_id=4
-		$url = $ipamurl . "/rpc/iplocator_ng_import_device.php?hostaddr=". $ip ."&site_id=4";
+		if( $host_id['snmp_version'] == 3 ){
+			$snmp_profile = 5;
+		} else {
+			$snmp_profile = 4;
+		}
+		//https://ipam.lausanne.ch/rpc/iplocator_ng_import_device.php?hostaddr=$host_id&site_id=4&snmp_profile_id=5
+		$url = $ipamurl . "/rpc/iplocator_ng_import_device.php?hostaddr=". $ip ."&site_id=4&snmp_profile_id=". $snmp_profile;
 		
         $handle = curl_init();
 		curl_setopt( $handle, CURLOPT_URL, $url );
@@ -534,17 +548,18 @@ function linkdiscovery_api_device_new( $host_id ) {
         $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
         $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
+        cacti_log( "ipam URL: ". $url, false, 'LINKDISCOVERY'  );
         if ( $result['http_code'] > "299" )
         {
             $result['curl_error'] = $error;
-			link_log( "ipam error: ". $result['curl_error'] );
+			cacti_log( "ipam error: ". $result['curl_error'], false, 'LINKDISCOVERY'  );
         }
        
-        link_log( "ipam result: ". $result['body'] );
+        link_log( "ipam result: ". $result['body']  );
+        cacti_log( "ipam result: ". print_r($result, true), false, 'LINKDISCOVERY'  );
 
 		curl_close($handle);
-	cacti_log('End IPAM', false, 'LINKDISCOVERY' );
-
+		cacti_log('End IPAM', false, 'LINKDISCOVERY' );
 	}
 	
 	$usearuba = read_config_option("linkdiscovery_aruba_server");

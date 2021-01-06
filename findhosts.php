@@ -188,24 +188,26 @@ foreach($parms as $parameter) {
 
 if (read_config_option("linkdiscovery_log_debug") == "on") $debug = TRUE;
 
-// check if findhost is allready running
-$runningfile = $config['base_path'] . '/plugins/linkdiscovery'."/findhost-running";
-if ( file_exists( $runningfile ) && !$forcerun ) {
-	linkdiscovery_debug("Findhost is running.\n");
-	exit;
-} else {
-	touch( $runningfile );
-}
-
 $time_based_collection_timming = read_config_option("linkdiscovery_base_time");
 
 $collection_timming = read_config_option("linkdiscovery_collection_timing");
 if ($collection_timming == 0 && !$forcerun) {
-	linkdiscovery_debug("Link Discovery Polling is set to disabled.\n");
+	cacti_log("Link Discovery Polling is set to disabled.", true, "LINKDISCOVERY");
 	if(!isset($debug)) {
 		unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	}
 	exit;
+}
+
+$last_run_time = read_config_option("linkdiscovery_last_run_time");
+
+// check if findhost is allready running
+$runningfile = $config['base_path'] . '/plugins/linkdiscovery'."/findhost-running";
+if ( file_exists( $runningfile ) && !$forcerun ) {
+	cacti_log("Findhost is running: ".date( 'Y-m-d H:m:s', $last_run_time), true, "LINKDISCOVERY");
+	exit;
+} else {
+	touch( $runningfile );
 }
 
 linkdiscovery_debug("Checking to determine if it's time to run.\n");
@@ -276,7 +278,7 @@ if ( $known_hosts=='') {
 }
 
 if (!is_array($known_hosts)) {
-	linkdiscovery_debug("Link Discovery failed to pull seed hosts? Exiting.");
+	linkdiscovery_debug("Link Discovery failed to pull seed hosts! Exiting.");
 	unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
 	exit;
 }
@@ -410,7 +412,7 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost['description'] .
 	}
 	
 	if( $snmp ) {
-linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$seedhost['description']);
+//linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$seedhost['description']);
 		// host is scanned now, otherwise we will do it again, so save it's name to the stack
 		db_execute("UPDATE plugin_linkdiscovery_hosts SET scanned='1' WHERE hostname='" .
 		$seedhost['hostname']."'" );
@@ -459,7 +461,7 @@ linkdiscovery_debug("We find host list: ".print_r($searchname, true) . " on:".$s
 				// check witch SNMP version we gona use
 				if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
 					$hostrecord_array = array_merge(checkSNMP($hostrecord_array), $hostrecord_array );
-					linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
+					//linkdiscovery_debug('hostrecord: '. print_r($hostrecord_array, true));
 				} else { // otherwise default snmp value
 					$hostrecord_array = array_merge($default_snmp_array, $hostrecord_array );
 				}
@@ -562,7 +564,7 @@ function linkdiscovey_get_intf($hostrecord, $seedhost, $hostrecord_array){
 
 	// sub-index id
 	$cdpsnmpsubitfidx = substr( $itfidx, strlen($cdpinterfacename.$cdpsnmpitfidx)+2 );
-linkdiscovery_debug("  Get interface seedhost: ".$seedhost['hostname']." interface: ".$itfidx." hostrec: ".print_r($hostrecord_array, true)."\n" );
+linkdiscovery_debug("  Get interface seedhost: ".$seedhost['hostname']." interface: ".$itfidx."\n" );
 
 	// interface array index of the : source, dest
 	$itfidxarray['source'] = $cdpsnmpitfidx;
@@ -611,12 +613,12 @@ linkdiscovery_debug("snmp interface id for: ". $hostrecord_array['hostname'] ." 
 			$ret = true;
 
 		} else {
-linkdiscovery_debug("  snmp host " . $hostrecord_array['hostname'] . " Interface error can't read OID: ".$cdpinterfacename."\n");
-linkdiscovery_debug('snmp string: '.print_r($hostrecord_array, true) );
+linkdiscovery_debug("snmp host " . $hostrecord_array['hostname'] . " Interface error can't read OID: ".$cdpinterfacename."\n");
+//linkdiscovery_debug('snmp string: '.print_r($hostrecord_array, true) );
 			$ret = false;
 		}
 	} else {
-linkdiscovery_debug("  snmp wifi, phone or subinterface no snmp for interface for: " . $hostrecord_array['hostname']. " id: ".$itfnamearray['source'] ." type: ".$itftype ."\n");
+linkdiscovery_debug("snmp wifi, phone or subinterface no snmp for interface for: " . $hostrecord_array['hostname']. " id: ".$itfnamearray['source'] ." type: ".$itftype ."\n");
 		$ret = false;
 	}
 	
@@ -665,7 +667,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			}
 			$hostrecord_array["host_template_id"] = $host_template['host_template'];
 		}
-linkdiscovery_debug($hostrecord_array['description'] );
+linkdiscovery_debug('Savedata: '.$hostrecord_array['description'] );
 
 		$new_hostid = api_device_save( '0', $hostrecord_array['host_template_id'], $hostrecord_array['description'], 
 		$hostrecord_array['hostname'], $hostrecord_array['snmp_community'], $hostrecord_array['snmp_version'], 
@@ -749,7 +751,7 @@ linkdiscovery_debug(" site_id2: ".$site_id."\n");
 		linkdiscovery_debug("Error on ID retrive for: ". $seedhost['description'] ." id: " . $seedhostid );
 		return;
 	}
-linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']." -> host_dst:".$new_hostid." itf_dst: ".$itfidxarray['dest']."\n" );
+linkdiscovery_debug("host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']." -> host_dst:".$new_hostid." itf_dst: ".$itfidxarray['dest']."\n" );
 
 	// save interface information
 	db_execute("REPLACE INTO plugin_linkdiscovery_intf (host_id_src, host_id_dst, snmp_index_src, snmp_index_dst ) 
@@ -765,10 +767,10 @@ linkdiscovery_debug("   host_src: ".$seedhostid." itf_src: ".$itfidxarray['sourc
 	}
 
 	// Call any other registered function
-	api_plugin_hook_function('host_save', array('host_id' => $new_hostid));
+	api_plugin_hook_function('api_device_new', $hostrecord_array ));
 
 	// and then run automation rules
-	api_plugin_hook_function('device_action_bottom', array(get_nfilter_request_var('drp_action'), $new_hostid));
+//	api_plugin_hook_function('device_action_bottom', array(get_nfilter_request_var('drp_action'), $new_hostid));
 	automation_update_device($new_hostid);
 	// then run THOLD plugin if present
 	if (api_plugin_is_enabled('thold')) {
@@ -899,7 +901,7 @@ function linkdiscovery_graph_cpu( $new_hostid, $snmp_array ){
 		WHERE graph_local.host_id=".$new_hostid. "
 		AND graph_templates.name LIKE '%CPU%' ");
 
-linkdiscovery_debug("CPU Graph: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
+//linkdiscovery_debug("CPU Graph: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
 		if ( !$existsAlready ) {
 			if( $graph_template ){
 				$empty=array();
@@ -910,15 +912,11 @@ linkdiscovery_debug("CPU Graph: ". $new_hostid ." graph_template_id: ".var_dump(
 				$query = run_data_query( $new_hostid, $snmp_query_id );
 				$empty=array();
 				$snmp_query_array["snmp_query_id"] = $snmp_query_id;
-/*				$snmp_query_array["snmp_index_on"]
-				$snmp_query_array["snmp_query_graph_id"]
-				$snmp_query_array["snmp_index"]*/
-linkdiscovery_debug("CPU query: ". $new_hostid ." ".var_dump($query) );
-//				$return_array = create_complete_graph_from_template( $graph_template_id, $new_hostid,  $snmp_query_array, $empty);
+//linkdiscovery_debug("CPU query: ". $new_hostid ." ".var_dump($query) );
 			}
-linkdiscovery_debug("   Created CPU graph" );
+//linkdiscovery_debug("   Created CPU graph" );
 		} else {
-linkdiscovery_debug("CPU Graph exist: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
+//linkdiscovery_debug("CPU Graph exist: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
 		}
 	}
 	
@@ -936,9 +934,9 @@ function linkdiscovery_create_graphs( $new_hostid, $seedhostid, $src_intf, $snmp
 	if( $snmp_traffic_query_graph_id > 0 ) {
 		$return_array = buildGraph( $snmp_traffic_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
 		if( $return_array ) {
-linkdiscovery_debug("   Created traffic graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
+linkdiscovery_debug("Created traffic graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
-linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$snmp_traffic_query_graph_id."\n" );
+//linkdiscovery_debug("Graph traffic exist: " .$seedhostid . " id: " .$snmp_traffic_query_graph_id."\n" );
 		}
 	}
 
@@ -949,9 +947,9 @@ linkdiscovery_debug("   Graph traffic exist: " .$seedhostid . " id: " .$snmp_tra
 	if( $snmp_packets_query_graph_id > 0 ) {
 		$return_array = buildGraph( $snmp_packets_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
 		if( $return_array ) {
-linkdiscovery_debug("   Created packets graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
+linkdiscovery_debug("Created packets graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
-linkdiscovery_debug("   Graph packets exist: " .$seedhostid . " id: " .$snmp_packets_query_graph_id."\n" );
+//linkdiscovery_debug("Graph packets exist: " .$seedhostid . " id: " .$snmp_packets_query_graph_id."\n" );
 		}
 	}
 
@@ -962,9 +960,9 @@ linkdiscovery_debug("   Graph packets exist: " .$seedhostid . " id: " .$snmp_pac
 	if( $snmp_status_query_graph_id > 0 ) {
 		$return_array = buildGraph( $snmp_status_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
 		if( $return_array ) {
-linkdiscovery_debug("   Created status graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
+linkdiscovery_debug("Created status graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
 		} else {
-linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$snmp_status_query_graph_id."\n" );
+//linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$snmp_status_query_graph_id."\n" );
 		}
 
 	}
@@ -973,15 +971,14 @@ linkdiscovery_debug("   Graph status exist: " .$seedhostid . " id: " .$snmp_stat
     if( $snmp_errors_query_graph_id > 0) {
 		$return_array = buildGraph( $snmp_errors_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array);
 		if( $return_array ) {
-linkdiscovery_debug("   Created Errors graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
+linkdiscovery_debug("Created Errors graph src_intf: " .$src_intf." * ". get_graph_title($return_array["local_graph_id"]) ."\n");
         } else {
-linkdiscovery_debug("   Graph Errors exist: " .$seedhostid . " id: " .$snmp_errors_query_graph_id."\n" );
+//linkdiscovery_debug("Graph Errors exist: " .$seedhostid . " id: " .$snmp_errors_query_graph_id."\n" );
         }
     }
 
 	// lastly push host-specific information to our data sources, that will trigger the automation process
 	push_out_host($seedhostid,0);
-linkdiscovery_debug("end, trigger push out: " .$seedhostid . "\n" );
 }
 
 function buildGraph( $snmp_query_graph_id, $new_hostid, $seedhostid, $src_intf, $snmp_array ) {
@@ -1027,7 +1024,7 @@ function create_complete_graph_from_template($graph_template_id, $host_id, $snmp
 	FROM snmp_query_graph
 	WHERE snmp_query_graph.graph_template_id=".$graph_template_id );
 
-linkdiscovery_debug("BuildGraph gtpi: ".$graph_template_id ." sqi: ". $snmp_query_id );
+//linkdiscovery_debug("BuildGraph gtpi: ".$graph_template_id ." sqi: ". $snmp_query_id );
 
 	
 	if( $snmp_query_id > 0) {
@@ -1190,7 +1187,7 @@ function is_ipv6($address) {
 
 function linkdiscovery_recreate_tables () {
 linkdiscovery_debug("Request received to recreate the LinkDiscovery Plugin's tables\n");
-linkdiscovery_debug("   Dropping the tables\n");
+linkdiscovery_debug("Dropping the tables\n");
 	db_execute("drop table plugin_linkdiscovery_hosts");
 	db_execute("drop table plugin_linkdiscovery_intf");
 
