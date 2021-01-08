@@ -302,7 +302,7 @@ $default_snmp_array = array(
 "snmp_context" 		   => read_config_option('snmp_context'),
 "snmp_engine_id" 	   => read_config_option('snmp_engine_id'),
 "snmp_retries" 		   => read_config_option('snmp_retries'),
-"disable"              => false,
+"disabled"              => false,
 "availability_method"  => read_config_option('availability_method'),
 "ping_method"          => read_config_option('ping_method'),
 "ping_port"            => read_config_option('ping_port'),
@@ -650,7 +650,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
-			$hostrecord_array["disable"]				= 'on';
+			$hostrecord_array["disabled"]				= 'on';
 			$hostrecord_array["notes"] = $hostrecord_array['description'];
 		} else {
 			// get host template id based on OS defined on automation
@@ -672,7 +672,7 @@ linkdiscovery_debug('Savedata: '.$hostrecord_array['description'] );
 		$new_hostid = api_device_save( '0', $hostrecord_array['host_template_id'], $hostrecord_array['description'], 
 		$hostrecord_array['hostname'], $hostrecord_array['snmp_community'], $hostrecord_array['snmp_version'], 
 		$hostrecord_array['snmp_username'], $hostrecord_array['snmp_password'], $hostrecord_array['snmp_port'], 
-		$hostrecord_array['snmp_timeout'], $hostrecord_array['disable'], $hostrecord_array['availability_method'], 
+		$hostrecord_array['snmp_timeout'], $hostrecord_array['disabled'], $hostrecord_array['availability_method'], 
 		$hostrecord_array['ping_method'], $hostrecord_array['ping_port'], $hostrecord_array['ping_timeout'], 
 		$hostrecord_array['ping_retries'], $hostrecord_array['notes'], $hostrecord_array['snmp_auth_protocol'], 
 		$hostrecord_array['snmp_priv_passphrase'], $hostrecord_array['snmp_priv_protocol'], $hostrecord_array['snmp_context'], 
@@ -761,13 +761,13 @@ linkdiscovery_debug("host_src: ".$seedhostid." itf_src: ".$itfidxarray['source']
 		. $itfidxarray['source'] . ", "
 		. $itfidxarray['dest'] . " )");
 
-	// and create the needed graphs on the specific link, except for Phone, or if disable
+	// and create the needed graphs on the specific link, except for Phone, or if disabled
 	if( $goodtogo != $isPhone && $canpeeritf ) {
 		linkdiscovery_create_graphs($new_hostid, $seedhostid, $itfidxarray['source'], $hostrecord_array );
 	}
 
 	// Call any other registered function
-	api_plugin_hook_function('api_device_new', $hostrecord_array ));
+	api_plugin_hook_function('api_device_new', $hostrecord_array );
 
 	// and then run automation rules
 //	api_plugin_hook_function('device_action_bottom', array(get_nfilter_request_var('drp_action'), $new_hostid));
