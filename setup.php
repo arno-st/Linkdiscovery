@@ -508,7 +508,6 @@ function linkdiscovery_api_device_new( $host_id ) {
 			return $host_id;
 		}
 	} else {
-		cacti_log('field don t exist: '.$host_id['description'], false, 'LINKDISCOVERY' );
 		link_log('Recu: '. print_r($host_id, true) );
 		link_log('field don t exist: '.$host_id['description']);
 		return $host_id;
