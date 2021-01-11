@@ -102,6 +102,10 @@ function linkdiscovery_check_upgrade() {
 			DROP COLUMN `snmp_context`,
 			DROP COLUMN `host_template_id`;");
 		}
+		if( $old < '1.4.3' ) {
+			db_execute("ALTER TABLE `settings` DROP IF EXIST `linkdiscovery_useipam`" );
+			db_execute("ALTER TABLE `settings` DROP IF EXIST `linkdiscovery_url`" );
+		}
 	}
 }
 
@@ -191,19 +195,6 @@ function linkdiscovery_config_settings () {
 			"default" => "1",
 			"method" => "textbox",
 			"max_length" => "3"
-			),
-		'linkdiscovery_useipam' => array(
-			'friendly_name' => 'Use the EfficientIP netchange ?',
-			'description' => 'Fill EfficientIP Netchange product when a host is added.',
-			'method' => 'checkbox',
-			'default' => 'off'
-			),
-		"linkdiscovery_ipam_url" => array(
-			"friendly_name" => "URL of the EfficientIP server",
-			"description" => "URL of the EfficientIP server.",
-			"method" => "textbox",
-			"max_length" => 80,
-			"default" => ""
 			),
 		'linkdiscovery_aruba_server' => array(
 			'friendly_name' => "Aruba ClearPass URL server",
@@ -497,107 +488,17 @@ function linkdiscovery_device_remove( $hosts_id ){
 
 function linkdiscovery_api_device_new( $host_id ) {
 	cacti_log('Enter Linkdiscovery', false, 'LINKDISCOVERY' );
-    cacti_log('Enter IPAM', false, 'LINKDISCOVERY' );
 	
-	$useipam = read_config_option("linkdiscovery_useipam");
-	
-	// if device is disabled, or snmp has nothing, don't save on IPAM or other
+	// if device is disabled, or snmp has nothing, don't save on other
 	if( array_key_exists('disabled', $host_id) && array_key_exists('snmp_version', $host_id) && array_key_exists('id', $host_id) ) {
 		if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
-			link_log('don t use IPAM: '.$host_id['description'] );
+			link_log('don t use ?!?!?: '.$host_id['description'] );
 			return $host_id;
 		}
 	} else {
 		link_log('Recu: '. print_r($host_id, true) );
 		link_log('field don t exist: '.$host_id['description']);
 		return $host_id;
-	}
-	
-	if( $useipam ){
-		$ipamurl = read_config_option("linkdiscovery_ipam_url");
-		
-		// check if device allready exist, if so continue if not add it.
-		// https://ipam.lausanne.ch/rest/iplnetdev_list?WHERE=iplnetdev_name%20LIKE%20%27SE-CH9-40%25%27
-		$url = $ipamurl . "/rest/iplnetdev_list?WHERE=iplnetdev_name%20LIKE%20%27".$host_id["description"]."%25%27";
-		
-        $handle = curl_init();
-		curl_setopt( $handle, CURLOPT_URL, $url );
-		curl_setopt( $handle, CURLOPT_POST, false );
-		curl_setopt( $handle, CURLOPT_HEADER, true );
-		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'X-IPM-Username:c19jYWN0aW5ldHdvcmthZG0=', 'X-IPM-Password:VU5BVzJtM3NGRis5dVN6WmY=','Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
-
-		$response = curl_exec($handle);
-		$error = curl_error($handle);
-		$result = array( 'header' => '',
-                         'body' => '',
-                         'curl_error' => '',
-                         'http_code' => '',
-                         'last_url' => '');
-
-        $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-        $result['header'] = substr($response, 0, $header_size);
-        $result['body'] = substr( $response, $header_size );
-        $result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-        $result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-        if ( $result['http_code'] > "299" ) {
-			link_log( "ipam URL: ". $url );
-            $result['curl_error'] = $error;
-			link_log( "ipam error: ". print_r($result, true)  );
-        }
-       
-		curl_close($handle);
-		
-		// device does not exist
-		if( $result['http_code'] > "204" ) {
-			// add device to IPAM
-			cacti_log( "Device not on IPAM: ". $host_id['description'], false, 'LINKDISCOVERY' );	
-			
-			//$host_id["hostname"] do a nslook if necessary
-			$ip = gethostbyname($host_id["hostname"]);
-			if( $host_id['snmp_version'] == 3 ){
-				$snmp_profile = 5;
-			} else {
-				$snmp_profile = 4;
-			}
-			//https://ipam.lausanne.ch/rpc/iplocator_ng_import_device.php?hostaddr=$host_id&site_id=4&snmp_profile_id=5
-			$url = $ipamurl . "/rpc/iplocator_ng_import_device.php?hostaddr=". $ip ."&site_id=4&snmp_profile_id=". $snmp_profile;
-			
-			$handle = curl_init();
-			curl_setopt( $handle, CURLOPT_URL, $url );
-			curl_setopt( $handle, CURLOPT_POST, true );
-			curl_setopt( $handle, CURLOPT_HEADER, true );
-			curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-			curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-			curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'X-IPM-Username:c19jYWN0aW5ldHdvcmthZG0=', 'X-IPM-Password:VU5BVzJtM3NGRis5dVN6WmY=','Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
-	
-			$response = curl_exec($handle);
-			$error = curl_error($handle);
-			$result = array( 'header' => '',
-							'body' => '',
-							'curl_error' => '',
-							'http_code' => '',
-							'last_url' => '');
-	
-			$header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-			$result['header'] = substr($response, 0, $header_size);
-			$result['body'] = substr( $response, $header_size );
-			$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-			$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-	
-			if ( $result['http_code'] > "299" )
-			{
-				$result['curl_error'] = $error;
-				link_log( "ipam URL: ". $url );
-				link_log( "ipam error: ". print_r($result, true)  );
-				cacti_log( "ipam result: ". print_r($result, true), false, 'LINKDISCOVERY'  );
-			}
-	
-			curl_close($handle);
-		}
-		cacti_log('End IPAM', false, 'LINKDISCOVERY' );
 	}
 	
 	$usearuba = read_config_option("linkdiscovery_aruba_server");
