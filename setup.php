@@ -103,9 +103,13 @@ function linkdiscovery_check_upgrade() {
 			DROP COLUMN `host_template_id`;");
 		}
 		if( $old < '1.4.3' ) {
-			db_execute("ALTER TABLE `settings` DROP IF EXIST `linkdiscovery_useipam`" );
-			db_execute("ALTER TABLE `settings` DROP IF EXIST `linkdiscovery_url`" );
-		}
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_useipam`" );
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_url`" );
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_access_token`" );
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_radius_secret`" );
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_server`" );
+			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_tacacs_secret`" );
+		} 
 	}
 }
 
@@ -196,34 +200,6 @@ function linkdiscovery_config_settings () {
 			"method" => "textbox",
 			"max_length" => "3"
 			),
-		'linkdiscovery_aruba_server' => array(
-			'friendly_name' => "Aruba ClearPass URL server",
-			'description' => 'URL of the Aruba server where will be addedd all newly discovered device',
-			"method" => "textbox",
-			"max_length" => 80,
-			"default" => ""
-		),
-		'linkdiscovery_aruba_access_token' => array(
-			'friendly_name' => "Aruba ClearPass Access Token",
-			'description' => 'The ClearPass Access Token API',
-			"method" => "textbox_password",
-			"max_length" => 80,
-			"default" => ""
-		),
-		'linkdiscovery_aruba_radius_secret' => array(
-			'friendly_name' => "Aruba ClearPass radius secret",
-			'description' => 'The radius secret for a new device',
-			"method" => "textbox_password",
-			"max_length" => 80,
-			"default" => ""
-		),
-		'linkdiscovery_aruba_tacacs_secret' => array(
-			'friendly_name' => "Aruba ClearPass tacacs secret",
-			'description' => 'The tacas secret for a new device',
-			"method" => "textbox_password",
-			"max_length" => 80,
-			"default" => ""
-		),
 		"linkdiscovery_other_header" => array(
 			"friendly_name" => "other option",
 			"method" => "spacer",
@@ -469,17 +445,11 @@ function linkdiscovery_device_remove( $hosts_id ){
 	//array(1) { [0]=> string(4) "1921" } device remove : 
 	if( sizeof($hosts_id) ) {
 
-	$usearuba = read_config_option("linkdiscovery_aruba_server");
-
 		foreach( $hosts_id as $host_id) {
 			// remove host from plugin_linkdiscovery_hosts and plugin_linkdiscovery_intf
 			db_execute("DELETE FROM plugin_linkdiscovery_hosts where id=".$host_id );
 			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_dst=".$host_id );
 			db_execute("DELETE FROM plugin_linkdiscovery_intf where host_id_src=".$host_id );
-			if($usearuba > 0){
-				// call aruba REST API
-//				remove_aruba_device($host_id );
-			}
 		}
 	}
 
@@ -493,374 +463,12 @@ function linkdiscovery_api_device_new( $host_id ) {
 	if( array_key_exists('disabled', $host_id) && array_key_exists('snmp_version', $host_id) && array_key_exists('id', $host_id) ) {
 		if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
 			link_log('don t use ?!?!?: '.$host_id['description'] );
-			return $host_id;
 		}
 	} else {
 		link_log('Recu: '. print_r($host_id, true) );
 		link_log('field don t exist: '.$host_id['description']);
-		return $host_id;
 	}
-	
-	$usearuba = read_config_option("linkdiscovery_aruba_server");
-	if($usearuba){
-		// call aruba REST API
-		// get Auth Token
-		$token = aruba_get_oauth();
-		if( ! $token ) {
-			return;
-		}
-		// if device exist, just update it
-		if( check_aruba_device( $host_id, $token) ) {
-			update_aruba_device($host_id, $token);
-		}
-		else add_aruba_device($host_id, $token);
-	}
-
 	return $host_id;
-}
-
-function aruba_get_oauth() {
-	cacti_log('Arruba OAUTH', false, 'LINKDISCOVERY' );
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	$aruba_access_token = read_config_option("linkdiscovery_aruba_access_token");
-	
-	$url = $arubaurl . '/oauth';
-//**** get the auth token
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_POST, true );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8','cache-control:no-cache') );
-    curl_setopt( $handle, CURLOPT_POSTFIELDS, 
-        '{
-        "grant_type": "client_credentials",
-        "client_id": "LinkDiscovery",
-        "client_secret": "'.$aruba_access_token.'"
-        }'
-    );  //r4rL0DvX+/RQBeSoHvH5umxPJ40QTuoWRxh5g9o8lLIU
-
-
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => ''
-					 );
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "299" )
-    {
-		$result['curl_error'] = $error;
-		link_log("oauth error: ". $result['body'] ."\n" );
-        curl_close($handle);
-		$token = false;
-    } else {
-       
-		$response = json_decode( $result['body'], true );
-		$token = $response['access_token'];
-	}
-
-	return $token;
-}
-
-function check_aruba_device( $host_id, $token ) {
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
-	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
-	
-	cacti_log('Enter Aruba check', false, 'LINKDISCOVERY' );
-
-	
-//**** check if the device exist
-	$url = $arubaurl . '/network-device/name/'.$host_id['description'];
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_HTTPGET, true );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	cacti_log('Exit Aruba check', false, 'LINKDISCOVERY' );
-
-	curl_close($handle);
-
-	if ( $result['http_code'] == "200" ) {
-		return true;
-	}
- 
-	return false;
-}
-
-function update_aruba_device( $host_id, $token ) {
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
-	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
-	
-	cacti_log('Enter Aruba Update', false, 'LINKDISCOVERY' );
-	
-//**** add the device
-	$ip = gethostbyname($host_id['hostname']);
-	$url = $arubaurl . '/network-device/name/'.$host_id['description'];
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, 'PATCH');
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-    $desc = $host_id['description'];
-    $name = $host_id['description'];
-	$snmp_username =  '';
-	$snmp_auth_protocol = ''; 
-	$snmp_auth_key = '';
-	$snmp_priv_protocol = '';
-	$snmp_priv_passphrase = '';
-    $snmp_sec_level = '';
-	if( $host_id['snmp_version'] == '2' ) {
-    	$snmp_version = "V2C";
-    } else if( $host_id['snmp_version'] == '3' ) {
-		$snmp_version = "V3";
-		$snmp_username =  $host_id['snmp_username'];
-		$snmp_auth_protocol = $host_id['snmp_auth_protocol']; 
-		$snmp_auth_key = $host_id['snmp_password']; 
-		if( $host_id['snmp_priv_protocol'] == 'DES' ) {
-			$snmp_priv_protocol = 'DES_CBC';
-		} elseif ( $host_id['snmp_priv_protocol'] == 'AES128' ) {
-			$snmp_priv_protocol = 'AES_128';
-		}
-		$snmp_priv_passphrase = $host_id['snmp_priv_passphrase'];
-		if( $host_id['snmp_priv_protocol'] == '[None]' ) {
-			if( $snmp_auth_protocol == '[None]' ) 
-				$snmp_sec_level = 'NOAUTH_NOPRIV';
-			else $snmp_sec_level = 'AUTH_NOPRIV';
-		} else $snmp_sec_level = 'AUTH_PRIV';
-		
-	} else $snmp_version = "V1";
-
-    $snmp_community = $host_id['snmp_community'];
-	
-    curl_setopt( $handle, CURLOPT_POSTFIELDS,
-        "{
-			\"description\": \"$desc\",
-			\"name\": \"$name\",
-			\"ip_address\" : \"$ip\",
-			\"radius_secret\": \"$arubaradius\",
-			\"tacacs_secret\": \"$arubatacacs\",
-			\"vendor_name\": \"Cisco\",
-			\"coa_capable\": true,
-			\"coa_port\":3799,
-			\"snmp_read\": {
-				\"force_read\": true,
-				\"read_arp_info\": true,
-				\"snmp_version\" : \"$snmp_version\",
-				\"community_string\": \"$snmp_community\",
-				\"security_level\": \"$snmp_sec_level\",
-				\"user\": \"$snmp_username\",
-				\"auth_protocol\": \"$snmp_auth_protocol\",
-				\"auth_key\": \"$snmp_auth_key\",
-				\"privacy_protocol\": \"$snmp_priv_protocol\",
-				\"privacy_key\": \"$snmp_priv_passphrase\"
-				}
-        }"
-    );
-	
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "399" ) {
-		link_log("aruba add error: ". $result['body'] ."\n" );
-	}
-       
-	cacti_log('Exit Aruba update', false, 'LINKDISCOVERY' );
-
-	curl_close($handle);
-}
-
-function add_aruba_device( $host_id, $token ) {
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	$arubatacacs = read_config_option("linkdiscovery_aruba_tacacs_secret");
-	$arubaradius = read_config_option("linkdiscovery_aruba_radius_secret");
-	
-	cacti_log('Enter Aruba Add', false, 'LINKDISCOVERY' );
-
-	
-//**** add the device
-	$ip = gethostbyname($host_id['hostname']);
-	$url = $arubaurl . '/network-device';
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_POST, true );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-    $desc = $host_id['description'];
-    $name = $host_id['description'];
-	$snmp_username = '';
-	$snmp_auth_protocol = '';
-	$snmp_auth_key = '';
-	$snmp_priv_protocol = '';
-	$snmp_sec_level = '';
-	$snmp_priv_passphrase = '';
-    if( $host_id['snmp_version'] == '2' ) {
-    	$snmp_version = "V2C";
-    } else if( $host_id['snmp_version'] == '3' ) {
-		$snmp_version = "V3";
-		$snmp_username =  $host_id['snmp_username'];
-		$snmp_auth_protocol = $host_id['snmp_auth_protocol']; 
-		$snmp_auth_key = $host_id['snmp_password']; 
-		if( $host_id['snmp_priv_protocol'] == 'DES' ) {
-			$snmp_priv_protocol = 'DES_CBC';
-		} elseif ( $host_id['snmp_priv_protocol'] == 'AES128' ) {
-			$snmp_priv_protocol = 'AES_128';
-		}
-		$snmp_priv_passphrase = $host_id['snmp_priv_passphrase'];
-		if( $host_id['snmp_priv_protocol'] == '[None]' ) {
-			if( $snmp_auth_protocol == '[None]' ) 
-				$snmp_sec_level = 'NOAUTH_NOPRIV';
-			else $snmp_sec_level = 'AUTH_NOPRIV';
-		} else $snmp_sec_level = 'AUTH_PRIV';
-		
-	} else $snmp_version = "V1";
-
-    $snmp_community = $host_id['snmp_community'];
-	
-    curl_setopt( $handle, CURLOPT_POSTFIELDS,
-        "{
-			\"description\": \"$desc\",
-			\"name\": \"$name\",
-			\"ip_address\" : \"$ip\",
-			\"radius_secret\": \"$arubaradius\",
-			\"tacacs_secret\": \"$arubatacacs\",
-			\"vendor_name\": \"Cisco\",
-			\"coa_capable\": true,
-			\"coa_port\":3799,
-			\"snmp_read\": {
-				\"force_read\": true,
-				\"read_arp_info\": true,
-				\"snmp_version\" : \"$snmp_version\",
-				\"community_string\": \"$snmp_community\",
-				\"security_level\": \"$snmp_sec_level\",
-				\"user\": \"$snmp_username\",
-				\"auth_protocol\": \"$snmp_auth_protocol\",
-				\"auth_key\": \"$snmp_auth_key\",
-				\"privacy_protocol\": \"$snmp_priv_protocol\",
-				\"privacy_key\": \"$snmp_priv_passphrase\"
-				}
-        }"
-    );
-	
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "299" ) {
-		link_log("aruba add error: ". $result['body'] ."\n" );
-	}
-       
-	cacti_log('Exit Aruba Add', false, 'LINKDISCOVERY' );
-
-	curl_close($handle);
-}
-
-function remove_aruba_device( $host_id ) {
-	$arubaurl = read_config_option("linkdiscovery_aruba_server");
-	
-	$token = aruba_get_oauth();
-	if( ! $token ) {
-		return;
-	}
-		
-//**** remove the device
-	$hostname = $host_id['hostname'];
-	$url = $arubaurl . '/network-device/name/'.$hostname;
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-    curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, "DELETE" );
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
-	
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "299" )
-        {
-			link_log("aruba remove error: ". $result['body'] ."\n" );
-        }
-       
-	link_log( "aruba remove result: ". $result['body']  );
-
-	curl_close($handle);
-
 }
 
 function link_log( $text ){
