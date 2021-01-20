@@ -457,18 +457,14 @@ function linkdiscovery_device_remove( $hosts_id ){
 }
 
 function linkdiscovery_api_device_new( $host_id ) {
-	cacti_log('Enter Linkdiscovery', false, 'LINKDISCOVERY' );
-	
-	// if device is disabled, or snmp has nothing, don't save on other
-	if( array_key_exists('disabled', $host_id) && array_key_exists('snmp_version', $host_id) && array_key_exists('id', $host_id) ) {
-		if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
-			link_log('don t use ?!?!?: '.$host_id['description'] );
-		}
-	} else {
-		link_log('Recu: '. print_r($host_id, true) );
-		link_log('field don t exist: '.$host_id['description']);
+// check valid call
+	if( !array_key_exists('disabled', $host_id ) || !array_key_exists('id', $host_id) ) {
+		link_log('Not valid call: '. print_r($host_id, true) );
+		return $host_id;
 	}
-	cacti_log('End Linkdiscovery', false, 'LINKDISCOVERY' );
+	link_log('Enter Linkdiscovery: '.$host_id['description'].'('.$host_id['id'].')' );
+	
+	link_log('End Linkdiscovery' );
 	return $host_id;
 }
 
