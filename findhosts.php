@@ -712,9 +712,8 @@ $hostrecord_array["host_template_id"]."\n");
 	// save the type and serial number to the new host's record
 	// if device can snmp, do a snmp search. otherwise cdp will be fine
 	if( $extenddb && !empty($hostrecord_array['hostname']) ) {
-		// get the serial number and type
-		if(  !empty($hostrecord_array['hostname']) ) {
-//			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], "cisco" )+strlen("cisco")+1 ) );
+		// get the serial number and type only for disabled device, otherwise extenddb will do it
+		if( !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on' ) {
 			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], " " ) ) );
 			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
 		}
@@ -727,7 +726,7 @@ $hostrecord_array["host_template_id"]."\n");
 				parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
 			}
 
-		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) ) { // Get the WA information
+		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname'] && $hostrecord_array['disabled'] == 'on') ) { // Get the WA information
 			db_execute("update host set type='".str_replace("cisco", "", $hostrecord_array['type']). "' where id=" . $new_hostid );
 
 			// get the site_id based on the seedhost
