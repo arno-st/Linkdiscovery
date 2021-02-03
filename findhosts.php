@@ -308,7 +308,7 @@ $default_snmp_array = array(
 "ping_port"            => read_config_option('ping_port'),
 "ping_timeout"         => read_config_option('ping_timeout'),
 "ping_retries"         => read_config_option('ping_retries'),
-"notes"                => "Added by Link Discovery Plugin",
+"notes"                => "",
 "device_threads"       => 1,
 "max_oids"             => 10
 );
@@ -711,8 +711,8 @@ $hostrecord_array["host_template_id"]."\n");
 	}
 	// save the type and serial number to the new host's record
 	// if device can snmp, do a snmp search. otherwise cdp will be fine
-	if( $extenddb && !empty($hostrecord_array['hostname']) ) {
-		// get the serial number and type only for disabled device, otherwise extenddb will do it
+	if( $extenddb && !empty($hostrecord_array['hostname']) && ($goodtogo == $isWifi || $goodtogo == $isPhone) ) {
+		// get the serial number and type only for isPhone, otherwise extenddb will do it
 		if( !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on' ) {
 			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], " " ) ) );
 			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
