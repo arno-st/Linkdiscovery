@@ -708,6 +708,11 @@ $hostrecord_array["host_template_id"]."\n");
 		if ( $update_hostname ) {
 			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
 		}
+		// update hostname (IP), and Description in case of phone
+		if( $goodtogo == $isPhone ) {
+			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
+			db_execute("update host set description='". $hostrecord_array['description'] . "' where id=" . $new_hostid );
+		}
 	}
 	// save the type and serial number to the new host's record
 	// if device can snmp, do a snmp search. otherwise cdp will be fine
