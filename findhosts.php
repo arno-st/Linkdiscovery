@@ -236,7 +236,7 @@ $domain_name = read_config_option("linkdiscovery_domain_name");
 $use_fqdn_description = read_config_option("linkdiscovery_use_fqdn_for_description");
 /* Do we use the IP for the hostname?  If not, use FQDN */
 $use_ip_hostname = read_config_option("linkdiscovery_use_ip_hostname");
-/* Do we use the IP for the hostname?  If not, use FQDN */
+/* Do we update the IP for the hostname?  for phone or wifi */
 $update_hostname = read_config_option("linkdiscovery_update_hostname");
 // wifi setup
 $keepwifi = read_config_option("linkdiscovery_keep_wifi");
@@ -645,7 +645,13 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 		$max_oids, $device_threads, $poller_id = 1, $site_id = 1, $external_id = '') {
 */
 		// if it's a phone,a Wifi or an ureachable snmp device don't use any template, and check only via ping
-		if( $goodtogo == $isWifi || $goodtogo == $isPhone || !$canpeeritf ) {
+		if( $goodtogo == $isWifi ) {
+			$hostrecord_array["host_template_id"] 	= '0';
+			$hostrecord_array["availability_method"]  = '3';
+			$hostrecord_array["ping_method"]          = '1';
+			$hostrecord_array["snmp_version"] 		= '0';
+			$hostrecord_array["notes"] = $hostrecord_array['description'];
+		} elseif( $goodtogo == $isPhone || !$canpeeritf ) {
 			$hostrecord_array["host_template_id"] 	= '0';
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
@@ -705,11 +711,8 @@ $hostrecord_array["host_template_id"]."\n");
 			linkdiscovery_graph_cpu($new_hostid, $hostrecord_array);
 		}
 	} else {
-		if ( $update_hostname ) {
-			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
-		}
-		// update hostname (IP), and Description in case of phone
-		if( $goodtogo == $isPhone ) {
+		// update hostname (IP), and Description in case of phone and Wifi
+		if( $update_hostname && ($goodtogo == $isWifi || $goodtogo == $isPhone ) ) {
 			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
 			db_execute("update host set description='". $hostrecord_array['description'] . "' where id=" . $new_hostid );
 		}

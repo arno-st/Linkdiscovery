@@ -168,8 +168,8 @@ function linkdiscovery_config_settings () {
 			"default" => "off",
 			),
 		'linkdiscovery_update_hostname' => array(
-			'friendly_name' => "Update the hostname field with FQDN if available",
-			'description' => "When discovered, if a device exist into cacti, the hostname will be set to the FQDN value we can retrive either way from the CDP name or the CDP ip.",
+			'friendly_name' => "Update the hostname field",
+			'description' => "When discovered, if a device exist into cacti, the hostname will be updated to the discovered IP, not for switch or router.",
 			'method' => 'checkbox',
 			'default' => 'off',
 			),
