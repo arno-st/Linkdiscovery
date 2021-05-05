@@ -456,7 +456,7 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost['description'] .
 				// resolve the hostname and description of the host find into CDP
 				$hostrecord_array = resolvehostname($searchname[$nb], $hostipcapa['ip'] );
 				$hostrecord_array['hostip'] = $hostip;
-				$hostrecord_array['type'] = $hostipcapa['type'];
+				$hostrecord_array['model'] = $hostipcapa['model'];
 				
 				// check witch SNMP version we gona use
 				if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
@@ -533,17 +533,17 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
 //linkdiscovery_debug("hostgetipcapa2: ". $seedhost['description']. " OID: " . $cdpdeviceip.".".$intfindex ." ip: " .$searchip. "\n");
 
-	// look for the equipement type
-	$searchtype = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $cdpremotetype.".".
+	// look for the equipement model
+	$searchmodel = cacti_snmp_get( $seedhost['hostname'], $seedhost['snmp_community'], $cdpremotetype.".".
 	$intfindex, $seedhost['snmp_version'], $seedhost['snmp_username'], $seedhost['snmp_password'], 
 	$seedhost['snmp_auth_protocol'], $seedhost['snmp_priv_passphrase'], 
 	$seedhost['snmp_priv_protocol'], $seedhost['snmp_context'] ); 
 
 	$ret['ip'] = str_replace(":", " ", $searchip);
 	$ret['capa'] = $searchcapa;
-	$ret['type'] = trim($searchtype);
+	$ret['model'] = trim($searchmodel);
 
-//linkdiscovery_debug("seed: ". $seedhost['description']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " type: ". $searchtype ."\n");
+//linkdiscovery_debug("seed: ". $seedhost['description']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " model: ". $searchmodel ."\n");
 
 	return $ret;
 }
@@ -717,13 +717,13 @@ $hostrecord_array["host_template_id"]."\n");
 			db_execute("update host set description='". $hostrecord_array['description'] . "' where id=" . $new_hostid );
 		}
 	}
-	// save the type and serial number to the new host's record
+	// save the model and serial number to the new host's record
 	// if device can snmp, do a snmp search. otherwise cdp will be fine
 	if( $extenddb && !empty($hostrecord_array['hostname']) && ($goodtogo == $isWifi || $goodtogo == $isPhone) ) {
-		// get the serial number and type only for isPhone, otherwise extenddb will do it
+		// get the serial number and model only for isPhone, otherwise extenddb will do it
 		if( !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on' ) {
-			$type = trim( substr($hostrecord_array['type'], strpos( $hostrecord_array['type'], " " ) ) );
-			db_execute("update host set type='".$type. "' where id=" . $new_hostid );
+			$model = trim( substr($hostrecord_array['model'], strpos( $hostrecord_array['model'], " " ) ) );
+			db_execute("update host set model='".$model. "' where id=" . $new_hostid );
 		}
 		if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
 			// set the flag isPhone
@@ -735,7 +735,7 @@ $hostrecord_array["host_template_id"]."\n");
 			}
 
 		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname'] && $hostrecord_array['disabled'] == 'on') ) { // Get the WA information
-			db_execute("update host set type='".str_replace("cisco", "", $hostrecord_array['type']). "' where id=" . $new_hostid );
+			db_execute("update host set model='".str_replace("cisco", "", $hostrecord_array['model']). "' where id=" . $new_hostid );
 
 			// get the site_id based on the seedhost
 			$site_id = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost['description'] ."' OR hostname='".$seedhost['hostname']. "'" );
@@ -871,7 +871,7 @@ linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
 				}
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" model numbers: ".$numbers."\n");
-				db_execute("update host set type='". $numbers . "' where id=" . $new_hostid );
+				db_execute("update host set model='". $numbers . "' where id=" . $new_hostid );
 			} else linkdiscovery_debug(" Can't get model "."\n");
 }
 

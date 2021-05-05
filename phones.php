@@ -46,8 +46,8 @@ if (isset_request_var('phone_number')) {
 	set_request_var('phone_number', sanitize_search_string(get_request_var("phone_number")) );
 }
 
-if (isset_request_var('phone_type')) {
-	set_request_var('phone_type', sanitize_search_string(get_request_var("phone_type")) );
+if (isset_request_var('phone_model')) {
+	set_request_var('phone_model', sanitize_search_string(get_request_var("phone_V")) );
 }
 
 if (isset_request_var('switch_name')) {
@@ -77,7 +77,7 @@ if (isset_request_var('sort_direction')) {
 		kill_session_var("sess_linkdiscovery_phone");
 		kill_session_var("sess_linkdiscovery_phone_IP");
 		kill_session_var("sess_linkdiscovery_phone_number");
-		kill_session_var("sess_linkdiscovery_phone_type");
+		kill_session_var("sess_linkdiscovery_phone_model");
 		kill_session_var("sess_linkdiscovery_switch_name");
 		kill_session_var("sess_linkdiscovery_switch_description");
 		kill_session_var("sess_linkdiscovery_switch_port");
@@ -88,7 +88,7 @@ if (isset_request_var('sort_direction')) {
 		unset($_REQUEST["phone"]);
 		unset($_REQUEST["phone_IP"]);
 		unset($_REQUEST["phone_number"]);
-		unset($_REQUEST["phone_type"]);
+		unset($_REQUEST["phone_model"]);
 		unset($_REQUEST["switch_name"]);
 		unset($_REQUEST["switch_description"]);
 		unset($_REQUEST["switch_port"]);
@@ -101,7 +101,7 @@ if (isset_request_var('sort_direction')) {
 		$changed += phone_request_check_changed('phone', 'sess_linkdiscovery_phone');
 		$changed += phone_request_check_changed('phone_IP', 'sess_linkdiscovery_phone_IP');
 		$changed += phone_request_check_changed('phone_number', 'sess_linkdiscovery_phone_number');
-		$changed += phone_request_check_changed('phone_type', 'sess_linkdiscovery_phone_type');
+		$changed += phone_request_check_changed('phone_model', 'sess_linkdiscovery_phone_model');
 		$changed += phone_request_check_changed('switch_name', 'sess_linkdiscovery_switch_name');
 		$changed += phone_request_check_changed('switch_description', 'sess_linkdiscovery_switch_description');
 		$changed += phone_request_check_changed('switch_port', 'sess_linkdiscovery_switch_port');
@@ -117,7 +117,7 @@ load_current_session_value("page", "sess_linkdiscovery_current_page", "1");
 load_current_session_value("phone", "sess_linkdiscovery_phone", "");
 load_current_session_value("phone_IP", "sess_linkdiscovery_phone_IP", "");
 load_current_session_value("phone_number", "sess_linkdiscovery_phone_number", "");
-load_current_session_value("phone_type", "sess_linkdiscovery_phone_type", "");
+load_current_session_value("phone_model", "sess_linkdiscovery_phone_model", "");
 load_current_session_value("switch_name", "sess_linkdiscovery_switch_name", "");
 load_current_session_value("switch_description", "sess_linkdiscovery_switch_description", "");
 load_current_session_value("switch_port", "sess_linkdiscovery_switch_port", "");
@@ -129,7 +129,7 @@ $sql_where  = '';
 $phone       		= get_request_var("phone");
 $phone_IP      		= get_request_var("phone_IP");
 $phone_number       = get_request_var("phone_number");
-$phone_type       	= get_request_var("phone_type");
+$phone_model       	= get_request_var("phone_model");
 $switch_name       	= get_request_var("switch_name");
 $switch_description = get_request_var("switch_description");
 $switch_port       	= get_request_var("switch_port");
@@ -143,8 +143,8 @@ if ($phone_IP != '') {
 if ($phone_number != '') {
 	$sql_where .= " AND " . "host.notes LIKE '%$phone_number%'";
 }
-if ($phone_type != '') {
-	$sql_where .= " AND " . "host.type LIKE '%$phone_type%'";
+if ($phone_model != '') {
+	$sql_where .= " AND " . "host.model LIKE '%$phone_model%'";
 }
 
 if ($switch_name != '') {
@@ -192,8 +192,8 @@ if( strcmp($sortby, 'phone')  == 0) {
 	$sortby="phone_IP";
 } else if( strcmp($sortby, 'phone_number')  == 0) {
 	$sortby="phone_number";
-} else if( strcmp($sortby, 'phone_type')  == 0) {
-	$sortby="phone_type";
+} else if( strcmp($sortby, 'phone_model')  == 0) {
+	$sortby="phone_model";
 } else if( strcmp($sortby, 'switch_name')  == 0) {
 	$sortby="switch_name";
 } else if( strcmp($sortby, 'switch_description')  == 0) {
@@ -202,7 +202,7 @@ if( strcmp($sortby, 'phone')  == 0) {
 	$sortby="switch_port";
 }
 
-$sql_query = "SELECT host.description as phone, host.hostname as phone_IP, host.notes as phone_number, host.type as phone_type, 
+$sql_query = "SELECT host.description as phone, host.hostname as phone_IP, host.notes as phone_number, host.model as phone_model, 
 		switch.hostname as switch_name, switch.description as switch_description, intf_src.field_value as switch_port 
 		FROM host, host as switch, plugin_linkdiscovery_intf discointf, host_snmp_cache intf_src 
 		WHERE host.isPhone ='on' 
@@ -235,7 +235,7 @@ function applyFilterChange(objForm) {
 	strURL += '&rows=' + objForm.rows.value;
 	strURL +=  '&phone_IP=' + objForm.phone_IP.value;
 	strURL +=  '&phone_number=' + objForm.phone_number.value;
-	strURL +=  '&phone_type=' + objForm.phone_type.value;
+	strURL +=  '&phone_model=' + objForm.phone_model.value;
 	strURL +=  '&switch_name=' + objForm.switch_name.value;
 	strURL +=  '&switch_description=' + objForm.switch_description.value;
 	strURL +=  '&switch_port=' + objForm.switch_port.value;
@@ -273,10 +273,10 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 					<input type="text" name="phone_number" size="5" value="<?php print get_request_var("phone_number");?>">
 				</td>
 				<td nowrap style='white-space:' width="1">
-					&nbsp;Phone type:&nbsp;
+					&nbsp;Phone model:&nbsp;
 				</td>
 				<td width="1">
-					<input type="text" name="phone_type" size="8" value="<?php print get_request_var("phone_type");?>">
+					<input type="text" name="phone_model" size="8" value="<?php print get_request_var("phone_model");?>">
 				</td>
 				<td nowrap style='white-space:' width="1">
 					&nbsp;Switch name:&nbsp;
@@ -336,7 +336,7 @@ $display_text = array(
 	"phone" => array("Phone", "ASC"),
 	"phone_IP" => array("Phone IP", "ASC"),
 	"phone_number" => array("Phone number", "ASC"),
-	"phone_type" => array("Phone type", "ASC"),
+	"phone_model" => array("Phone model", "ASC"),
 	"switch_name" => array("Switch name", "ASC"),
 	"switch_description" => array("Switch description", "ASC"),
 	"switch_port" => array("Switch port", "ASC"),
@@ -359,7 +359,7 @@ if (sizeof($result)) {
 			. $row['phone'] . '</td>
 			<td>' . $row['phone_IP'] . '</td>
 			<td>' . $row['phone_number'] . '</td>
-			<td>' . $row['phone_type'] . '</td>
+			<td>' . $row['phone_model'] . '</td>
 			<td>' . $row['switch_name'] . '</td>
 			<td>' . $row['switch_description'] . '</td>
 			<td>' . $row['switch_port'] . '</td>

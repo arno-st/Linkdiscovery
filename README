@@ -64,3 +64,4 @@ pt the RRD file.
 1.4.1 remove type count, and move it to extenddb
 1.4.2 optimize api hook call, and remove serial number and device type
 1.4.3 remove IPAM from setup, and create a separate plugin
+1.4.4 change type to model on host table
