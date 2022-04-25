@@ -645,19 +645,20 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 		$max_oids, $device_threads, $poller_id = 1, $site_id = 1, $external_id = '') {
 */
 		// if it's a phone,a Wifi or an ureachable snmp device don't use any template, and check only via ping
+		// changed Notes, to reflect on which switch the device is connected
 		if( $goodtogo == $isWifi ) {
 			$hostrecord_array["host_template_id"] 	= '0';
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
-			$hostrecord_array["notes"] = $hostrecord_array['description'];
+			$hostrecord_array["notes"] = $seedhost['description'];
 		} elseif( $goodtogo == $isPhone || !$canpeeritf ) {
 			$hostrecord_array["host_template_id"] 	= '0';
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
 			$hostrecord_array["disabled"]				= 'on';
-			$hostrecord_array["notes"] = $hostrecord_array['description'];
+			$hostrecord_array["notes"] = $seedhost['description'];
 		} else {
 			// get host template id based on OS defined on automation
 			// take info from profile based on OS returned from automation_find_os($sysDescr, $sysObject, $sysName)()

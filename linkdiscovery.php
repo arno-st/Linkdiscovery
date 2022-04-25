@@ -212,10 +212,10 @@ html_start_box('<strong>Filters</strong>', '100%', '', '3', 'center', '');
 					<input type="text" name="description_dst" size="15" value="<?php print get_request_var("description_dst");?>">
 				</td>
 				<td nowrap style='white-space: nowrap;' width="1">
-					&nbsp;&nbsp;Unknown Interface Only:&nbsp;&nbsp;
+					&nbsp;Unknown Interface Only;&nbsp;
 				</td>
 				<td width="1">
-					<input type="checkbox" name="unknown_intf" value="1" <?php ($unknown_intf=='1')?print " checked":print "" ?>>
+					<input type="checkbox" name="unknown_intf" value="1" <?php ($unknown_intf=='1')?print " checked":print "" ?> >
 				</td>
 				<td nowrap style='white-space: nowrap;' width="1">
 					&nbsp;Rows:&nbsp;

@@ -351,7 +351,7 @@ function linkdiscovery_poller_bottom () {
 	if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
 		return;
 	}
-	link_log('Start linkdiscovery setup');
+	cacti_log('Start linkdiscovery setup', false, "LINKDISCOVERY");
 
 	$command_string = trim(read_config_option("path_php_binary"));
 
