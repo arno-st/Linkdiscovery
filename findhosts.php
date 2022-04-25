@@ -735,7 +735,7 @@ $hostrecord_array["host_template_id"]."\n");
 				parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
 			}
 
-		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname'] && $hostrecord_array['disabled'] == 'on') ) { // Get the WA information
+		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on') ) { // Get the WA information
 			db_execute("update host set model='".str_replace("cisco", "", $hostrecord_array['model']). "' where id=" . $new_hostid );
 
 			// get the site_id based on the seedhost
