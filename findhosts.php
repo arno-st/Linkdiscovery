@@ -657,8 +657,12 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
-			$hostrecord_array["disabled"]				= 'on';
-			$hostrecord_array["notes"] = $seedhost['description'];
+			// check if it's a cisco phone
+			if( substr_compare($seedhost['description'], 'sip', 0, 3)==0
+			|| substr_compare($seedhost['description'], 'sep', 0, 3)==0 ) {
+				$hostrecord_array["disabled"]				= 'on';
+			}
+			$hostrecord_array['notes'] = $seedhost['description'];
 		} else {
 			// get host template id based on OS defined on automation
 			// take info from profile based on OS returned from automation_find_os($sysDescr, $sysObject, $sysName)()
@@ -735,7 +739,7 @@ $hostrecord_array["host_template_id"]."\n");
 				parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
 			}
 
-		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on') ) { // Get the WA information
+		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on') { // Get the WA information
 			db_execute("update host set model='".str_replace("cisco", "", $hostrecord_array['model']). "' where id=" . $new_hostid );
 
 			// get the site_id based on the seedhost
