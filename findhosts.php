@@ -381,9 +381,47 @@ linkdiscovery_debug("Pool host: " . $seedhost['description']. " deep: ". $CDPdee
 		return;
 	}
 
-	// check if the host is in the no scan list
+	// check if the host is in the no scan list, if true just return
+linkdiscovery_debug( 'noscanhost check host: '.$seedhost['hostname'] );
 	foreach($noscanhost as $nsh) {
-		if( strcasecmp($nsh, $seedhost['hostname']) == 0 ) {
+linkdiscovery_debug( 'noscanhost entry: '.$nsh );
+		if (strpos($nsh, '/') !== false) {
+		// it's in IP/NETMASK format
+			list($range, $netmask) = explode('/', $nsh, 2);
+			if (strpos($netmask, '.') !== false) {
+				// $netmask is a 255.255.0.0 format
+				$netmask_dec = ip2long($netmask);
+linkdiscovery_debug( 'noscanhost netmask: '.$netmask_dec );
+linkdiscovery_debug( 'noscanhost Range: '.(ip2long($range) & $netmask_dec) );
+linkdiscovery_debug( 'noscanhost IP: '.(ip2long($seedhost['hostname']) & $netmask_dec) );
+				if( (ip2long($seedhost['hostname']) & $netmask_dec) == (ip2long($range) & $netmask_dec) ) {
+linkdiscovery_debug( 'noscanhost exit MASK' );
+					return;
+				}
+			} else {
+				// $netmask is a CIDR size block
+				// fix the range argument
+				$x = explode('.', $nsh);
+				while(count($x)<4) $x[] = '0';
+				list($a,$b,$c,$d) = $x;
+				$range = sprintf("%u.%u.%u.%u", empty($a)?'0':$a, empty($b)?'0':$b,empty($c)?'0':$c,empty($d)?'0':$d);
+				$range_dec = ip2long($range);
+				$ip_dec = ip2long($seedhost['hostname']);
+				
+				$wildcard_dec = pow(2, (32-$netmask)) - 1;
+				$netmask_dec = ~ $wildcard_dec;
+linkdiscovery_debug( 'noscanhost netmask CIDR: '.$netmask_dec );
+linkdiscovery_debug( 'noscanhost Range: '.($range_dec & $netmask_dec) );
+linkdiscovery_debug( 'noscanhost IP: '.($ip_dec & $netmask_dec) );
+				
+				if(($ip_dec & $netmask_dec) == ($range_dec & $netmask_dec)) {
+linkdiscovery_debug( 'noscanhost exit CIDR' );
+					return;
+				}
+			}
+		} else if( strcasecmp($nsh, $seedhost['hostname']) == 0 ) {
+			// we find the precise host
+linkdiscovery_debug( 'noscanhost exit host' );
 			return;
 		}
 	}
@@ -456,7 +494,18 @@ linkdiscovery_debug( " hostname allready scanned: " . $seedhost['description'] .
 				// resolve the hostname and description of the host find into CDP
 				$hostrecord_array = resolvehostname($searchname[$nb], $hostipcapa['ip'] );
 				$hostrecord_array['hostip'] = $hostip;
-				$hostrecord_array['model'] = $hostipcapa['model'];
+				
+				if( $goodtogo == $isWifi ) {
+					$wifi_fqdn = read_config_option("linkdiscovery_wifi_domain_name");
+					if( !empty($wifi_fqdn) ) {
+						$hostrecord_array['hostname'] = $hostrecord_array['description'].'.'.$wifi_fqdn;
+					}
+				} else if( $goodtogo == $isPhone ) {
+					$phone_fqdn = read_config_option("linkdiscovery_phone_domain_name");
+					if( !empty($phone_fqdn) ) {
+						$hostrecord_array['hostname'] = $hostrecord_array['description'].'.'.$phone_fqdn;
+					}
+				}
 				
 				// check witch SNMP version we gona use
 				if( $goodtogo != $isWifi && $goodtogo != $isPhone ) {
@@ -478,7 +527,7 @@ linkdiscovery_debug("\nFind peer: " . $hostrecord_array['hostname']." - ".$hostr
 				if ( $hostrecord_array['hostname'] == '' ) {
 					cacti_log("linkdiscovery_save_data: no IP  useless: ". print_r($hostrecord_array, true), false, "LINKDISCOVERY" );
 				} else {
-					linkdiscovery_save_data( $seedhost, $hostrecord_array, $canreaditfpeer );
+					linkdiscovery_save_data( $seedhost, $hostrecord_array, $canreaditfpeer, $hostipcapa['model'] );
 linkdiscovery_debug("End saved");
 				}
 	
@@ -543,7 +592,7 @@ function hostgetipcapa( $seedhost, $hostoidindex ){
 	$ret['capa'] = $searchcapa;
 	$ret['model'] = trim($searchmodel);
 
-//linkdiscovery_debug("seed: ". $seedhost['description']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true). " model: ". $searchmodel ."\n");
+//linkdiscovery_debug("seed: ". $seedhost['description']. " OID: " . $hostoidindex . " OID CAPA: ".$cdpdevicecapacities.".".$intfindex." capa: ".print_r($searchcapa, true)." ip: ".print_r($searchip, true)."\n");
 
 	return $ret;
 }
@@ -626,7 +675,7 @@ linkdiscovery_debug("snmp wifi, phone or subinterface no snmp for interface for:
 }
 
 //**********************
-function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
+function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $model=0  ){
 	global $config, $itfnamearray, $itfidxarray, $monitor, $goodtogo, $isWifi, $isPhone, $update_hostname, 
 	$snmpserialno, $snmpsysdescr, $extenddb;
 
@@ -657,12 +706,10 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
-			// check if it's a cisco phone
-			if( substr_compare($seedhost['description'], 'sip', 0, 3)==0
-			|| substr_compare($seedhost['description'], 'sep', 0, 3)==0 ) {
-				$hostrecord_array["disabled"]				= 'on';
-			}
-			$hostrecord_array['notes'] = $seedhost['description'];
+			$hostrecord_array["disabled"]				= 'on';
+			$hostrecord_array["notes"] = $seedhost['description'];
+
+			// $hostrecord_array['notes'] = $model; // should contain the phone number
 		} else {
 			// get host template id based on OS defined on automation
 			// take info from profile based on OS returned from automation_find_os($sysDescr, $sysObject, $sysName)()
@@ -673,7 +720,7 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf  ){
 			
 			$host_template = automation_find_os($snmp_sysDescr, '', '');
 			if( $host_template === false ) {
-				linkdiscovery_debug("automation_find_os error(".$snmp_sysDescr."): ".$new_hostid." host: ".var_dump($hostrecord_array));
+				linkdiscovery_debug("automation_find_os error(".$snmp_sysDescr."): ".$new_hostid." host: ".print_r($hostrecord_array, true));
 				$host_template['host_template'] = read_config_option("default_template");
 			}
 			$hostrecord_array["host_template_id"] = $host_template['host_template'];
@@ -693,7 +740,7 @@ linkdiscovery_debug('Savedata: '.$hostrecord_array['description'] );
 $hostrecord_array["host_template_id"]."\n");
 
 		if($new_hostid == 0) {
-			linkdiscovery_debug("linkdiscovery_save_data error: ".$new_hostid." host: ".var_dump($hostrecord_array));
+			linkdiscovery_debug("linkdiscovery_save_data error: ".$new_hostid." host: ".print_r($hostrecord_array, true));
 			return;
 		} 
 		
@@ -726,22 +773,40 @@ $hostrecord_array["host_template_id"]."\n");
 	// if device can snmp, do a snmp search. otherwise cdp will be fine
 	if( $extenddb && !empty($hostrecord_array['hostname']) && ($goodtogo == $isWifi || $goodtogo == $isPhone) ) {
 		// get the serial number and model only for isPhone, otherwise extenddb will do it
-		if( !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on' ) {
-			$model = trim( substr($hostrecord_array['model'], strpos( $hostrecord_array['model'], " " ) ) );
-			db_execute("update host set model='".$model. "' where id=" . $new_hostid );
-		}
 		if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
 			// set the flag isPhone
 			db_execute("update host set isPhone='on' where id=" . $new_hostid );
+			
+			// save model
+			$mysql_insert = "INSERT INTO plugin_extenddb_host_model (id, host_id, model) VALUES('0', '".$new_hostid."', '".$model."') 
+			ON DUPLICATE KEY UPDATE model='".$model."'";
+			db_execute($mysql_insert);
+
+			// use IP2long for serial number
+			$mysql_insert = "INSERT INTO plugin_extenddb_host_serial_no (id, host_id, serial_no) VALUES('0', '".$new_hostid."', '".ip2long($hostrecord_array['hostname'])."') 
+			ON DUPLICATE KEY UPDATE serial_no='".ip2long($hostrecord_array['hostname'])."'";
+			db_execute($mysql_insert);
 
 			$readphone = read_config_option('linkdiscovery_parse_phone');
 			if( $readphone ) {
 				parse_phone_data( $seedhost, $hostrecord_array, $new_hostid );
 			}
+			// get the site_id based on the seedhost
+			$site_id = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost['description'] ."' OR hostname='".$seedhost['hostname']. "'" );
+			if( !empty($site_id) ) {
+				db_execute("update host set site_id=". $site_id . " where id=" . $new_hostid );
+			}
 
-		} else if( $goodtogo == $isWifi && !empty($hostrecord_array['hostname']) && $hostrecord_array['disabled'] == 'on') { // Get the WA information
-			db_execute("update host set model='".str_replace("cisco", "", $hostrecord_array['model']). "' where id=" . $new_hostid );
+		} else if( $goodtogo == $isWifi ) { // Get the WA information
+			$mysql_insert = "INSERT INTO plugin_extenddb_host_model (id, host_id, model) VALUES('0', '".$new_hostid."', '".$model."') 
+			ON DUPLICATE KEY UPDATE model='".$model."'";
+			db_execute($mysql_insert);
 
+			// ip(hostname) as serial number to be able to find it later
+			$mysql_insert = "INSERT INTO plugin_extenddb_host_serial_no (id, host_id, serial_no) VALUES('0', '".$new_hostid."', '".$hostrecord_array['hostname']."') 
+			ON DUPLICATE KEY UPDATE serial_no='".$hostrecord_array['hostname']."'";
+			db_execute($mysql_insert);
+			
 			// get the site_id based on the seedhost
 			$site_id = db_fetch_cell("SELECT site_id FROM host where description='". $seedhost['description'] ."' OR hostname='".$seedhost['hostname']. "'" );
 linkdiscovery_debug(" site_id2: ".$site_id."\n");
@@ -845,7 +910,7 @@ linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
 				}
 				$numbers = implode( ",\n", $number );
 				linkdiscovery_debug(" numbers: ".$numbers."\n");
-				db_execute("update host set notes='". $numbers . "' where id=" . $new_hostid );
+				db_execute("UPDATE host SET notes='". $numbers . "' where id=" . $new_hostid );
 			} else {
 				linkdiscovery_debug(" Can't get numbers "."\n");
 				return; // so we end the query here
@@ -856,13 +921,12 @@ linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
 			$tagname = array( "série", "serial number" ); //Serial Number, Numéro de série
 			$serialnumbers = get_page( $hostrecord_array['hostname'], $tagname );
 			if( !empty($serialnumbers) ) {
-				foreach($serialnumbers as $serialnumber) {
-					$num_array = explode( " ", $serialnumber);
-					$number[] = str_ireplace($tagname, "", $num_array[count($num_array)-1] );
+				foreach($serialnumbers as $key =>$serialnumber) {
+					$mysql_insert = "INSERT INTO plugin_extenddb_host_serial_no (id, host_id, serial_no) VALUES('".$key."', '".$new_hostid."', '".$serialnumber."')
+					ON DUPLICATE KEY UPDATE serial_no='".$serialnumber."'";
+					db_execute($mysql_insert);
+				linkdiscovery_debug(" ser serialnumber: ".$serialnumber."\n");
 				}
-				$numbers = implode( ",\n", $number );
-				linkdiscovery_debug(" ser numbers: ".$numbers."\n");
-				db_execute("update host set serial_no='". $numbers . "' where id=" . $new_hostid );
 			} else linkdiscovery_debug(" Can't get serial numbers "."\n");
 			
 			// get the model number
@@ -870,13 +934,12 @@ linkdiscovery_debug(" parse device: ".$hostrecord_array['hostname']."\n");
 			$tagname = array( "modèle", "Product ID", "Model Number" ); // product ID
 			$modeles = get_page( $hostrecord_array['hostname'], $tagname );
 			if( !empty($modeles) ) {
-				foreach($modeles as $modele) {
-					$num_array = explode(" ",$modele);
-					$number[] = str_ireplace($tagname, "", $num_array[count($num_array)-1] );
+				foreach($modeles as $key => $modele) {
+					$mysql_insert = "INSERT INTO plugin_extenddb_host_model (id, host_id, model) VALUES('".$key."', '".$hostrecord_array['id']."', '".$modele."') 
+					ON DUPLICATE KEY UPDATE model='".$modele."'";
+					db_execute($mysql_insert);
+					linkdiscovery_debug(" model numbers: ".$modele."\n");
 				}
-				$numbers = implode( ",\n", $number );
-				linkdiscovery_debug(" model numbers: ".$numbers."\n");
-				db_execute("update host set model='". $numbers . "' where id=" . $new_hostid );
 			} else linkdiscovery_debug(" Can't get model "."\n");
 }
 
@@ -913,7 +976,7 @@ function linkdiscovery_graph_cpu( $new_hostid, $snmp_array ){
 		WHERE graph_local.host_id=".$new_hostid. "
 		AND graph_templates.name LIKE '%CPU%' ");
 
-//linkdiscovery_debug("CPU Graph: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
+//linkdiscovery_debug("CPU Graph: ". $new_hostid ." graph_template_id: ".print_r($existsAlready, true) );
 		if ( !$existsAlready ) {
 			if( $graph_template ){
 				$empty=array();
@@ -924,11 +987,11 @@ function linkdiscovery_graph_cpu( $new_hostid, $snmp_array ){
 				$query = run_data_query( $new_hostid, $snmp_query_id );
 				$empty=array();
 				$snmp_query_array["snmp_query_id"] = $snmp_query_id;
-//linkdiscovery_debug("CPU query: ". $new_hostid ." ".var_dump($query) );
+//linkdiscovery_debug("CPU query: ". $new_hostid ." ".print_r($query, true) );
 			}
 //linkdiscovery_debug("   Created CPU graph" );
 		} else {
-//linkdiscovery_debug("CPU Graph exist: ". $new_hostid ." graph_template_id: ".var_dump($existsAlready) );
+//linkdiscovery_debug("CPU Graph exist: ". $new_hostid ." graph_template_id: ".print_r($existsAlready, true) );
 		}
 	}
 	
@@ -1055,7 +1118,7 @@ function create_complete_graph_from_template($graph_template_id, $host_id, $snmp
 			$snmp_query_array["snmp_index"] = $src_intf;
 			$return_array = create_complete_graph_from_template( $graph_template_id, $seedhostid, $snmp_query_array, $empty);
 			$status = $return_array;
-//linkdiscovery_debug("BuildGraph: ". var_dump($snmp_query_array)." return: ".var_dump($return_array));
+//linkdiscovery_debug("BuildGraph: ". print_r($snmp_query_array, true)." return: ".print_r($return_array, true));
 		} else $status = false;
 	} else $status = false;
 	
@@ -1121,11 +1184,11 @@ function resolvehostname( $hostrecord, $hostip ) {
 		// check if need to resolve the name to put the IP into the hostname
 		if( $use_ip_hostname ) {
 			$dnsquery = dns_get_record( $fqdnname, DNS_A);
-//linkdiscovery_debug("dnsquery1: " .var_dump($dnsquery) );
+//linkdiscovery_debug("dnsquery1: " .print_r($dnsquery, true) );
 			if (!$dnsquery) { // check if it work as supplied, if not add the define domain 
 				$fqdnname .= "." . $domain_name;
 				$dnsquery = dns_get_record( $fqdnname, DNS_A);
-//linkdiscovery_debug("dnsquery2: " .var_dump($dnsquery) );
+//linkdiscovery_debug("dnsquery2: " .print_r($dnsquery, true) );
 				if ( !$dnsquery) { // check if it work with new hostname and domain, if not just use ip find into CDP 
 					$hostname = $hostip; // if no dns answer use what is requested IP
 				} else $hostname = $dnsquery[0]['ip'];
@@ -1133,13 +1196,13 @@ function resolvehostname( $hostrecord, $hostip ) {
 		} else {
 			// chek if the hostname receive from CDP is FQDN ortherwise add domain
 			$dnsquery = dns_get_record( $fqdnname, DNS_A);
-//linkdiscovery_debug("dnsquery3: " .var_dump($dnsquery) );
+//linkdiscovery_debug("dnsquery3: " .print_r($dnsquery, true) );
 			if ( $dnsquery) { // check if it work with 
 				$hostname = strtolower($fqdnname);
 			} else {
 				$fqdnname .= "." . $domain_name;
 				$dnsquery = dns_get_record( $fqdnname, DNS_A);
-//linkdiscovery_debug("dnsquery4: " .var_dump($dnsquery) );
+//linkdiscovery_debug("dnsquery4: " .print_r($dnsquery, true) );
 				if( $dnsquery ){
 					$hostname = strtolower($fqdnname);
 				} else { // if not try to resolve IP

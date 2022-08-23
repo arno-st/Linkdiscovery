@@ -202,13 +202,14 @@ if( strcmp($sortby, 'phone')  == 0) {
 	$sortby="switch_port";
 }
 
-$sql_query = "SELECT host.description as phone, host.hostname as phone_IP, host.notes as phone_number, host.model as phone_model, 
-		switch.hostname as switch_name, switch.description as switch_description, intf_src.field_value as switch_port 
-		FROM host, host as switch, plugin_linkdiscovery_intf discointf, host_snmp_cache intf_src 
+$sql_query = "SELECT host.description AS phone, host.hostname AS phone_IP, host.notes AS phone_number, pehm.model AS phone_model 
+		switch.hostname AS switch_name, switch.description AS switch_description, intf_src.field_value AS switch_port 
+		FROM host
+		INNER JOIN plugin_linkdiscovery_intf AS discointf ON host.id=discointf.host_id_dst 
+		LEFT JOIN host AS switch ON switch.id = discointf.host_id_src 
+		INNER JOIN host_snmp_cache AS intf_src ON intf_src.host_id=switch.id 
+		INNER JOIN plugin_extenddb_host_model AS pehm ON pehm.host_id = host.id
 		WHERE host.isPhone ='on' 
-		AND host.id = discointf.host_id_dst 
-		AND switch.id = discointf.host_id_src 
-		AND intf_src.host_id=switch.id 
 		AND intf_src.field_name='ifDescr' 
 		AND intf_src.snmp_index IN (discointf.snmp_index_src, discointf.snmp_index_src=0)
 		AND intf_src.snmp_query_id=(SELECT id FROM snmp_query WHERE name LIKE '%nterface%')

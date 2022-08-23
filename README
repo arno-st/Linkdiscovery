@@ -65,3 +65,7 @@ pt the RRD file.
 1.4.2 optimize api hook call, and remove serial number and device type
 1.4.3 remove IPAM from setup, and create a separate plugin
 1.4.4 change type to model on host table
+1.4.5 Follow change on extenddb about serial number, use only when parsing web page on phone
+1.4.6 Chnaged the No scan option in the config, to handle VLSM subnet mask and hostname (IP), not just hostname
+1.4.7 Added a 'loop' view, based on each port of a switch. Show what's the next until Spanntree limit of 6 switch, or the same as start
+1.4.8 Added the option to keep the FQDN name for wifi device, their in DHCP so can change IP.

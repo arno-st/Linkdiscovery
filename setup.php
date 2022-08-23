@@ -35,7 +35,7 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'api_device_new', 'linkdiscovery_api_device_new', 'setup.php'); // add a device to efficientIP 
 
 
-	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
+	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php,loopview.php', 'Plugin -> LinkDiscovery', 1);
 
 	linkdiscovery_setup_table();
 }
@@ -110,6 +110,11 @@ function linkdiscovery_check_upgrade() {
 			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_server`" );
 			db_execute("DELETE FROM `settings` WHERE `settings`.`name` = `linkdiscovery_aruba_tacacs_secret`" );
 		} 
+		if( $old < '1.4.7' ) {
+			api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php,loopview.php', 'Plugin -> LinkDiscovery', 1);
+		}
+		if( $old < '1.4.8' ) { // added Wifi FQDN support
+		}
 	}
 }
 
@@ -210,11 +215,25 @@ function linkdiscovery_config_settings () {
 			'method' => 'checkbox',
 			'default' => 'off'
 			),
+		"linkdiscovery_wifi_domain_name" => array(
+			"friendly_name" => "Domain Name for wifi device",
+			"description" => "If not empty, the description will be used for hostname with this domain, to make it FQDN.",
+			"method" => "textbox",
+			"max_length" => 255,
+			"default" => ""
+			),
 		"linkdiscovery_keep_phone" => array(
 			"friendly_name" => "Keep the identified phone",
 			"description" => "Should we keep IP Phone as device (no CDP scan on it, save into cacti as device), and monitor via ping only.",
 			'method' => 'checkbox',
 			'default' => 'off'
+			),
+		"linkdiscovery_phone_domain_name" => array(
+			"friendly_name" => "Domain Name for phone device",
+			"description" => "If not empty, the description will be used for hostname with this domain, to make it FQDN.",
+			"method" => "textbox",
+			"max_length" => 255,
+			"default" => ""
 			),
 		"linkdiscovery_parse_phone" => array(
 			"friendly_name" => "Parse Identified Phone",
@@ -223,8 +242,8 @@ function linkdiscovery_config_settings () {
 			'default' => 'off'
 			),
 		'linkdiscovery_no_scan' => array(
-			'friendly_name' => "Don't scan this host",
-			'description' => 'Comma separeted hostname, where scanning is prohibited. Hostname must match hostname defined on cacti',
+			'friendly_name' => "Don't scan this host/CIDR",
+			'description' => 'Comma separeted hostname or CIDR (1.2.3/24 OR 1.2.3.4/255.255.255.0), where scanning is prohibited.',
 			'method' => 'textarea',
 			'class' => 'textAreaNotes',
 			'textarea_rows' => '5',
@@ -263,6 +282,16 @@ function linkdiscovery_show_tab () {
 			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/linkdiscovery.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover_down.gif" alt="LinkDiscovery" align="absmiddle" border="0"></a>';
 		}
 	}
+
+// display a 'Loop' view
+	if (api_user_realm_auth('loopview.php')) {
+		if (!substr_count($_SERVER["REQUEST_URI"], "loopview.php")) {
+			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/loopview.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover.gif" alt="LoopView" align="absmiddle" border="0"></a>';
+		}else{
+			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/loopview.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover_down.gif" alt="LoopView" align="absmiddle" border="0"></a>';
+		}
+	}
+	
 	
 	if (api_user_realm_auth('phones.php') && read_config_option('linkdiscovery_keep_phone') ) {
 
@@ -302,6 +331,12 @@ function linkdiscovery_draw_navigation_text ($nav) {
 		'title' => __('Linkdiscovery', 'linkdiscovery'),
 		'mapping' => 'index.php:',
 		'url' => 'linkdiscovery.php',
+		'level' => '1'
+	);
+	$nav['loopview.php:'] = array(
+		'title' => __('LoopView', 'linkdiscovery'),
+		'mapping' => 'index.php:',
+		'url' => 'loopview.php',
 		'level' => '1'
 	);
 	$nav['phones.php:'] = array(
