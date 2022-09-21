@@ -706,8 +706,11 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $mo
 			$hostrecord_array["availability_method"]  = '3';
 			$hostrecord_array["ping_method"]          = '1';
 			$hostrecord_array["snmp_version"] 		= '0';
-			$hostrecord_array["disabled"]				= 'on';
-			$hostrecord_array["notes"] = $seedhost['description'];
+			$disable_phone = read_config_option('linkdiscovery_phone_disabled');
+			if( ($goodtogo == $isPhone && $disable_phone) || !$canpeeritf ){
+				$hostrecord_array["disabled"]				= 'on';
+			} else $hostrecord_array["disabled"]				= '';
+			$hostrecord_array["notes"] = $seedhost['description'].' '.$hostrecord_array['hostname'];
 
 			// $hostrecord_array['notes'] = $model; // should contain the phone number
 		} else {
@@ -767,6 +770,7 @@ $hostrecord_array["host_template_id"]."\n");
 		if( $update_hostname && ($goodtogo == $isWifi || $goodtogo == $isPhone ) ) {
 			db_execute("update host set hostname='". $hostrecord_array['hostname'] . "' where id=" . $new_hostid );
 			db_execute("update host set description='". $hostrecord_array['description'] . "' where id=" . $new_hostid );
+			db_execute("update host set notes='". $seedhost['description']." ".$hostrecord_array['hostname'] . "' where id=" . $new_hostid );
 		}
 	}
 	// save the model and serial number to the new host's record

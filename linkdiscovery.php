@@ -108,10 +108,12 @@ general_header();
 
 $total_rows = db_fetch_cell("SELECT
 	COUNT(host_src.id)
-	FROM plugin_linkdiscovery_intf discointf, host host_dst, host host_src, host_snmp_cache intf_src, host_snmp_cache intf_dst
-	WHERE host_src.id=discointf.host_id_src and host_dst.id=discointf.host_id_dst
-    AND intf_src.host_id=host_src.id and intf_dst.host_id=host_dst.id 
-    AND intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
+	FROM plugin_linkdiscovery_intf discointf
+    INNER JOIN host host_dst ON host_dst.id=discointf.host_id_dst
+    INNER JOIN host host_src ON host_src.id=discointf.host_id_src
+    INNER JOIN host_snmp_cache intf_src ON intf_src.host_id=host_src.id
+    INNER JOIN host_snmp_cache intf_dst ON intf_dst.host_id=host_dst.id
+	WHERE intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
     AND intf_src.snmp_index=discointf.snmp_index_src
 	AND intf_dst.snmp_index IN (discointf.snmp_index_dst, discointf.snmp_index_dst=0)	
 	AND intf_src.snmp_query_id IN (SELECT id FROM snmp_query WHERE name LIKE '%nterface%')
@@ -148,10 +150,12 @@ $sql_query = "SELECT host_src.id,
 		host_src.hostname AS 'hostname_src',host_src.description AS 'desc_src', intf_src.field_value AS 'intf_src',
 		host_dst.hostname AS 'hostname_dst', host_dst.description AS 'desc_dst', 
 		IF(discointf.snmp_index_dst=0 ,'Unknown',intf_dst.field_value) AS 'intf_dst' 
-		FROM plugin_linkdiscovery_intf discointf, host host_dst, host host_src, host_snmp_cache intf_src, host_snmp_cache intf_dst
-		WHERE host_src.id=discointf.host_id_src and host_dst.id=discointf.host_id_dst
-        AND intf_src.host_id=host_src.id and intf_dst.host_id=host_dst.id 
-        AND intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
+		FROM plugin_linkdiscovery_intf discointf
+        RIGHT JOIN host host_dst ON host_dst.id=discointf.host_id_dst
+        RIGHT JOIN host host_src ON host_src.id=discointf.host_id_src
+        INNER JOIN host_snmp_cache intf_src ON intf_src.host_id=host_src.id
+        INNER JOIN host_snmp_cache intf_dst ON intf_dst.host_id=host_dst.id
+		WHERE intf_src.field_name='ifDescr' AND intf_dst.field_name='ifDescr' 
         AND intf_src.snmp_index=discointf.snmp_index_src 
 		AND intf_dst.snmp_index IN (discointf.snmp_index_dst, discointf.snmp_index_dst=0)	
 		AND intf_src.snmp_query_id IN (SELECT id FROM snmp_query WHERE name LIKE '%nterface%')

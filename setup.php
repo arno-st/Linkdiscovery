@@ -235,6 +235,12 @@ function linkdiscovery_config_settings () {
 			"max_length" => 255,
 			"default" => ""
 			),
+		"linkdiscovery_phone_disabled" => array(
+			"friendly_name" => "Disable phone when find, or just ping it.",
+			"description" => "Should we ping any phone, or just discover and make it disabled.",
+			'method' => 'checkbox',
+			'default' => 'off'
+			),
 		"linkdiscovery_parse_phone" => array(
 			"friendly_name" => "Parse Identified Phone",
 			"description" => "Should we Parse discovered IP Phone to find the phone number of it (can take a lot of time).",
