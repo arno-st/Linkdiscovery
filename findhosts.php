@@ -721,9 +721,10 @@ function linkdiscovery_save_data( $seedhost, $hostrecord_array, $canpeeritf, $mo
 			$hostrecord_array['snmp_password'], $hostrecord_array['snmp_auth_protocol'], $hostrecord_array['snmp_priv_passphrase'], 
 			$hostrecord_array['snmp_priv_protocol'], $hostrecord_array['snmp_context'] ); 
 			
-			$host_template = automation_find_os($snmp_sysDescr, '', '');
+			$host_template = automation_find_os($snmp_sysDescr, '', $hostrecord_array['description']);
 			if( $host_template === false ) {
 				linkdiscovery_debug("automation_find_os error(".$snmp_sysDescr."): ".$new_hostid." host: ".print_r($hostrecord_array, true));
+cacti_log("automation_find_os error(".$snmp_sysDescr."): ".$new_hostid." host: ".print_r($hostrecord_array, true), false, "LINKDISCOVERY" );
 				$host_template['host_template'] = read_config_option("default_template");
 			}
 			$hostrecord_array["host_template_id"] = $host_template['host_template'];
@@ -780,6 +781,7 @@ $hostrecord_array["host_template_id"]."\n");
 		if( $goodtogo == $isPhone && !empty($hostrecord_array['hostname']) ) { 
 			// set the flag isPhone
 			db_execute("update host set isPhone='on' where id=" . $new_hostid );
+			db_execute("update host set do_backup='off' where id=" . $new_hostid );
 			
 			// save model
 			$mysql_insert = "INSERT INTO plugin_extenddb_host_model (id, host_id, model) VALUES('0', '".$new_hostid."', '".$model."') 
