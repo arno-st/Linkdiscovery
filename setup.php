@@ -35,7 +35,7 @@ function plugin_linkdiscovery_install () {
 	api_plugin_register_hook('linkdiscovery', 'api_device_new', 'linkdiscovery_api_device_new', 'setup.php'); // add a device to efficientIP 
 
 
-	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php,loopview.php', 'Plugin -> LinkDiscovery', 1);
+	api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
 
 	linkdiscovery_setup_table();
 }
@@ -64,6 +64,7 @@ function plugin_linkdiscovery_upgrade () {
 }
 
 function linkdiscovery_check_upgrade() {
+		global $config;
 	$version = plugin_linkdiscovery_version ();
 	$current = $version['version'];
 	$old     = db_fetch_cell('SELECT version
@@ -115,6 +116,16 @@ function linkdiscovery_check_upgrade() {
 		}
 		if( $old < '1.4.8' ) { // added Wifi FQDN support
 		}
+		if( $old < '1.4.9' ) { // Loopview option
+		}
+		if( $old < '1.4.10' ) { // add record into settings
+			set_config_option('linkdiscovery_next_run_time', time() );
+		}		
+		if( $old < '1.5.0' ) { // Remove all loop setting
+			api_plugin_remove_realms('linkdiscovery');
+			api_plugin_register_realm('linkdiscovery', 'linkdiscovery.php,findhosts.php,phones.php', 'Plugin -> LinkDiscovery', 1);
+			@unlink( $config['base_path'] . '/plugins/linkdiscovery/loopview.php' );
+		}		
 	}
 }
 
@@ -289,15 +300,6 @@ function linkdiscovery_show_tab () {
 		}
 	}
 
-// display a 'Loop' view
-	if (api_user_realm_auth('loopview.php')) {
-		if (!substr_count($_SERVER["REQUEST_URI"], "loopview.php")) {
-			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/loopview.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover.gif" alt="LoopView" align="absmiddle" border="0"></a>';
-		}else{
-			print '<a href="' . $config['url_path'] . 'plugins/linkdiscovery/loopview.php"><img src="' . $config['url_path'] . 'plugins/linkdiscovery/images/tab_discover_down.gif" alt="LoopView" align="absmiddle" border="0"></a>';
-		}
-	}
-	
 	
 	if (api_user_realm_auth('phones.php') && read_config_option('linkdiscovery_keep_phone') ) {
 
@@ -320,7 +322,6 @@ function linkdiscovery_config_arrays () {
 		"2419200" => "Every 4 Weeks"
 		);
 
-
 	// get template list
 	$host_template_names = db_fetch_assoc("SELECT id, name FROM host_template");
 	$linkdiscovery_get_host_template = array();
@@ -337,12 +338,6 @@ function linkdiscovery_draw_navigation_text ($nav) {
 		'title' => __('Linkdiscovery', 'linkdiscovery'),
 		'mapping' => 'index.php:',
 		'url' => 'linkdiscovery.php',
-		'level' => '1'
-	);
-	$nav['loopview.php:'] = array(
-		'title' => __('LoopView', 'linkdiscovery'),
-		'mapping' => 'index.php:',
-		'url' => 'loopview.php',
 		'level' => '1'
 	);
 	$nav['phones.php:'] = array(
@@ -392,8 +387,9 @@ function linkdiscovery_poller_bottom () {
 	if (read_config_option("linkdiscovery_collection_timing") == "disabled") {
 		return;
 	}
-	cacti_log('Start linkdiscovery setup', false, "LINKDISCOVERY");
+	link_log('linkdiscovery_poller_bottom');
 
+// check if it's time to run
 	$command_string = trim(read_config_option("path_php_binary"));
 
 	// If its not set, just assume its in the path
@@ -469,6 +465,17 @@ function linkdiscovery_utilities_action ($action) {
 		utilities();
 		bottom_footer();
 	}
+	if($action == 'findhost_reset') {
+		$runningfile = $config['base_path'] . '/plugins/linkdiscovery'."/findhost-running";
+
+		set_config_option('linkdiscovery_last_run_time', time());
+		if ( file_exists( $runningfile ) ) {
+			unlink( $runningfile ) or die("Couldn't delete file: ".$runningfile);
+		}
+		top_header();
+		utilities();
+		bottom_footer();
+	}
 	return $action;
 }
 
@@ -479,6 +486,10 @@ function linkdiscovery_utilities_list () {
 	form_alternate_row();
 		print "<td class='nowrap' style='vertical-align:top;'> <a class='hyperLink' href='utilities.php?action=linkdiscovery_clear'>Clear LinkDiscovery Results</a></td>\n";
 		print "<td>This will clear the results from the Link Discovery data.</td>\n";
+	form_end_row();
+	form_alternate_row();
+		print "<td class='nowrap' style='vertical-align:top;'> <a class='hyperLink' href='utilities.php?action=findhost_reset'>Reset findhost as of today</a></td>\n";
+		print "<td>This will reset findhost like it has running last night.</td>\n";
 	form_end_row();
 }
 

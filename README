@@ -69,3 +69,6 @@ pt the RRD file.
 1.4.6 Chnaged the No scan option in the config, to handle VLSM subnet mask and hostname (IP), not just hostname
 1.4.7 Added a 'loop' view, based on each port of a switch. Show what's the next until Spanntree limit of 6 switch, or the same as start
 1.4.8 Added the option to keep the FQDN name for wifi device, their in DHCP so can change IP.
+1.4.9 add the loop view, to draw the loop based on PDB. add debug option for this part
+1.4.10: Add a record into the DB for setting: next_run_time, to store this value after findhost run.
+1.5.0: remove all function related to the design of Loop, it's to time consuming, and to complicate when a switch is connected to a switch without any 'loop'
